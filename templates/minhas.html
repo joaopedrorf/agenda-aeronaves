@@ -1,0 +1,11 @@
+{% extends 'base.html' %}
+{% block largura %}painel-largo{% endblock %}
+{% block conteudo %}
+<h2>{{ t.menu_minhas }}</h2>
+
+<h3>{{ t.proximas }}</h3>
+{% with lista = proximas, pode_cancelar = true %}{% include '_tabela_reservas.html' %}{% endwith %}
+
+<h3>{{ t.historico }}</h3>
+{% with lista = historico, pode_cancelar = false %}{% include '_tabela_reservas.html' %}{% endwith %}
+{% endblock %}

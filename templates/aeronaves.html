@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+{% block largura %}painel-medio{% endblock %}
+{% block conteudo %}
+<h2>{{ t.menu_aeronaves }}</h2>
+<p class="legenda">{{ t.aeronave_dica }}</p>
+
+<table class="lista">
+    <thead><tr><th>{{ t.matricula }}</th><th>{{ t.modelo }}</th><th>{{ t.status }}</th><th></th></tr></thead>
+    <tbody>
+        {% for a in aeronaves %}
+        <tr class="{% if not a.ativa %}apagada{% endif %}">
+            <td><strong>{{ a.matricula }}</strong></td>
+            <td>{{ a.modelo }}</td>
+            <td>{{ t.ativa if a.ativa else t.inativa }}</td>
+            <td>
+                <form method="POST" action="{{ url_for('alternar_aeronave', aeronave_id=a.id) }}">
+                    <input type="hidden" name="csrf" value="{{ csrf }}">
+                    <button type="submit" class="botao-pequeno">{{ t.desativar if a.ativa else t.ativar }}</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<form method="POST" class="caixa-resultado">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="duas-colunas">
+        <div>
+            <label for="matricula">{{ t.matricula }}</label>
+            <input type="text" id="matricula" name="matricula" placeholder="PR-XYZ" maxlength="10" required style="text-transform: uppercase;">
+        </div>
+        <div>
+            <label for="modelo">{{ t.modelo }}</label>
+            <input type="text" id="modelo" name="modelo" placeholder="Cessna 152" maxlength="60" required>
+        </div>
+    </div>
+    <button type="submit">{{ t.adicionar }}</button>
+</form>
+{% endblock %}
