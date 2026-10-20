@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="{{ idioma }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ t.titulo }}</title>
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='aviao.png') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <header class="topo">
+        <a class="marca" href="{{ url_for('agenda') }}">
+            <img src="{{ url_for('static', filename='aviao.png') }}" alt=""> {{ t.titulo }}
+        </a>
+        {% if current_user.is_authenticated %}
+        <nav class="menu">
+            <a href="{{ url_for('agenda') }}">{{ t.menu_agenda }}</a>
+            <a href="{{ url_for('nova_reserva') }}">{{ t.menu_nova }}</a>
+            <a href="{{ url_for('minhas_reservas') }}">{{ t.menu_minhas }}</a>
+            {% if current_user.is_admin %}
+            <a href="{{ url_for('aeronaves') }}">{{ t.menu_aeronaves }}</a>
+            <a href="{{ url_for('usuarios') }}">{{ t.menu_usuarios }}</a>
+            {% endif %}
+        </nav>
+        {% endif %}
+        <div class="lado">
+            <a href="{{ url_for('trocar_idioma', codigo='pt') }}" class="{% if idioma == 'pt' %}ativo{% endif %}">🇧🇷 PT</a>
+            <a href="{{ url_for('trocar_idioma', codigo='en') }}" class="{% if idioma == 'en' %}ativo{% endif %}">🇺🇸 EN</a>
+            {% if current_user.is_authenticated %}
+            <span class="quem">{{ current_user.nome }} · {{ t['papel_' ~ current_user.papel] }}</span>
+            <form method="POST" action="{{ url_for('sair') }}" class="inline">
+                <input type="hidden" name="csrf" value="{{ csrf }}">
+                <button type="submit" class="botao-link">{{ t.sair }}</button>
+            </form>
+            {% endif %}
+        </div>
+    </header>
+
+    <main class="painel {% block largura %}{% endblock %}">
+        {% with mensagens = get_flashed_messages(with_categories=true) %}
+            {% for tipo, texto in mensagens %}
+            <div class="aviso aviso-{{ tipo }}">{{ texto }}</div>
+            {% endfor %}
+        {% endwith %}
+
+        {% block conteudo %}{% endblock %}
+    </main>
+
+    {% if demo %}<footer class="rodape">{{ t.rodape }}</footer>{% endif %}
+</body>
+</html>

@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+{% block conteudo %}
+<h2>{{ t.menu_nova }}</h2>
+
+{% if erros %}
+<div class="aviso aviso-erro">
+    {% for e in erros %}<p>{{ e }}</p>{% endfor %}
+</div>
+{% endif %}
+
+<form method="POST" action="{{ url_for('nova_reserva') }}">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+
+    <label for="aeronave_id">{{ t.aeronave }}</label>
+    <select id="aeronave_id" name="aeronave_id" required>
+        {% for a in aeronaves %}
+        <option value="{{ a.id }}" {% if form.aeronave_id|string == a.id|string %}selected{% endif %}>{{ a.matricula }} · {{ a.modelo }}</option>
+        {% endfor %}
+    </select>
+
+    {% if current_user.papel != 'aluno' %}
+    <label for="aluno_id">{{ t.aluno }}</label>
+    <select id="aluno_id" name="aluno_id" required>
+        {% for u in alunos %}
+        <option value="{{ u.id }}" {% if form.aluno_id|string == u.id|string %}selected{% endif %}>{{ u.nome }}</option>
+        {% endfor %}
+    </select>
+    {% endif %}
+
+    <label for="instrutor_id">{{ t.instrutor }}</label>
+    <select id="instrutor_id" name="instrutor_id">
+        <option value="">{{ t.sem_instrutor }}</option>
+        {% for u in instrutores %}
+        {% set escolhido = form.instrutor_id|string == u.id|string or (not form.instrutor_id and current_user.id == u.id) %}
+        <option value="{{ u.id }}" {% if escolhido %}selected{% endif %}>{{ u.nome }}</option>
+        {% endfor %}
+    </select>
+
+    <label for="data">{{ t.data }}</label>
+    <input type="date" id="data" name="data" value="{{ form.data }}" required>
+
+    <div class="duas-colunas">
+        <div>
+            <label for="inicio">{{ t.inicio }}</label>
+            <input type="time" id="inicio" name="inicio" value="{{ form.inicio }}" step="1800" required>
+        </div>
+        <div>
+            <label for="fim">{{ t.fim }}</label>
+            <input type="time" id="fim" name="fim" value="{{ form.fim }}" step="1800" required>
+        </div>
+    </div>
+
+    <label for="observacao">{{ t.observacao }}</label>
+    <input type="text" id="observacao" name="observacao" value="{{ form.observacao or '' }}" maxlength="200" placeholder="{{ t.observacao_dica }}">
+
+    <button type="submit">{{ t.reservar }}</button>
+</form>
+{% endblock %}

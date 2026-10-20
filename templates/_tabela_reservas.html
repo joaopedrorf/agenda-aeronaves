@@ -1,0 +1,35 @@
+{% if not lista %}
+<p>{{ t.nenhuma_reserva }}</p>
+{% else %}
+<div class="rolagem">
+<table class="lista">
+    <thead>
+        <tr>
+            <th>{{ t.data }}</th><th>{{ t.aeronave }}</th><th>{{ t.aluno }}</th>
+            <th>{{ t.instrutor }}</th><th>{{ t.observacao }}</th><th>{{ t.status }}</th><th></th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for r in lista %}
+        <tr class="{% if r.cancelada %}riscada{% endif %}">
+            <td>{{ r.inicio.strftime('%d/%m/%Y') }}<br>{{ r.inicio.strftime('%H:%M') }}–{{ r.fim.strftime('%H:%M') }}</td>
+            <td>{{ r.aeronave.matricula }}</td>
+            <td>{{ r.aluno.nome }}</td>
+            <td>{{ r.instrutor.nome if r.instrutor else t.solo }}</td>
+            <td>{{ r.observacao }}</td>
+            <td>{{ t.cancelada if r.cancelada else t.confirmada }}</td>
+            <td>
+                {% if pode_cancelar and not r.cancelada %}
+                <form method="POST" action="{{ url_for('cancelar_reserva', reserva_id=r.id) }}" onsubmit="return confirm('{{ t.confirmar_cancelar }}')">
+                    <input type="hidden" name="csrf" value="{{ csrf }}">
+                    <input type="hidden" name="voltar" value="{{ url_for('minhas_reservas') }}">
+                    <button type="submit" class="botao-pequeno">{{ t.cancelar }}</button>
+                </form>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+{% endif %}

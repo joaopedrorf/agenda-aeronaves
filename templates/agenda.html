@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+{% block largura %}painel-largo{% endblock %}
+{% block conteudo %}
+<h2>{{ t.menu_agenda }}</h2>
+
+<form method="GET" class="navegar-dia">
+    <a class="botao-secundario" href="{{ url_for('agenda', dia=anterior.isoformat()) }}">{{ t.anterior }}</a>
+    <input type="date" name="dia" value="{{ dia.isoformat() }}" onchange="this.form.submit()" aria-label="{{ t.dia }}">
+    <a class="botao-secundario" href="{{ url_for('agenda') }}">{{ t.hoje }}</a>
+    <a class="botao-secundario" href="{{ url_for('agenda', dia=proximo.isoformat()) }}">{{ t.proximo }}</a>
+</form>
+
+{% if not grade %}
+    <p>{{ t.sem_aeronaves }}</p>
+{% else %}
+<p class="legenda">{{ t.legenda }}</p>
+<div class="rolagem">
+<table class="grade">
+    <thead>
+        <tr>
+            <th>{{ t.aeronave }}</th>
+            {% for hora in blocos %}
+            <th class="hora">{% if hora.endswith(':00') %}{{ hora[:2] }}h{% endif %}</th>
+            {% endfor %}
+        </tr>
+    </thead>
+    <tbody>
+        {% for aeronave, celulas in grade %}
+        <tr>
+            <th class="nome-aeronave">{{ aeronave.matricula }}<small>{{ aeronave.modelo }}</small></th>
+            {% for tipo, tamanho, item in celulas %}
+                {% if tipo == 'reserva' %}
+                <td colspan="{{ tamanho }}" class="ocupado {% if not item.instrutor_id %}solo{% endif %}
+                    {% if current_user.id in (item.aluno_id, item.instrutor_id) %}minha{% endif %}"
+                    title="{{ item.inicio.strftime('%H:%M') }}–{{ item.fim.strftime('%H:%M') }} · {{ item.observacao }}">
+                    <strong>{{ item.inicio.strftime('%H:%M') }}–{{ item.fim.strftime('%H:%M') }}</strong>
+                    <span>{{ item.aluno.nome }}</span>
+                    <span>{{ item.instrutor.nome if item.instrutor else t.solo }}</span>
+                </td>
+                {% else %}
+                    {% set momento = dia.isoformat() ~ ' ' ~ item %}
+                    {% if momento > agora.strftime('%Y-%m-%d %H:%M') %}
+                    <td class="livre"><a href="{{ url_for('nova_reserva', aeronave=aeronave.id, dia=dia.isoformat(), hora=item) }}" title="{{ t.livre }} {{ item }}"></a></td>
+                    {% else %}
+                    <td class="passado"></td>
+                    {% endif %}
+                {% endif %}
+            {% endfor %}
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+{% endif %}
+{% endblock %}
