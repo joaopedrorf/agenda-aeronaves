@@ -1,7 +1,8 @@
 {% extends 'base.html' %}
-{% block largura %}painel-largo{% endblock %}
+{% block largura %}conteudo-largo{% endblock %}
+{% block titulo %}{{ t.menu_minhas }}{% endblock %}
 {% block conteudo %}
-<h2>{{ t.menu_minhas }}</h2>
+<div class="cabecalho-pagina"><h1>{{ t.menu_minhas }}</h1></div>
 
 <h3>{{ t.proximas }}</h3>
 {% with lista = proximas, pode_cancelar = true %}{% include '_tabela_reservas.html' %}{% endwith %}

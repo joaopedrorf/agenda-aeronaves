@@ -81,32 +81,91 @@ def horarios_do_dia():
     return blocos
 
 
-def montar_grade(dia, aeronaves, reservas):
-    """Monta a tabela da agenda: uma linha por aeronave, uma coluna por bloco.
+def posicao(reserva):
+    """Posição da reserva na linha do tempo da agenda, em % (left e width)."""
+    total = (HORA_FECHAMENTO - HORA_ABERTURA) * 60
+    abertura = reserva.inicio.replace(hour=HORA_ABERTURA, minute=0)
+    inicio = (reserva.inicio - abertura).total_seconds() / 60
+    duracao = (reserva.fim - reserva.inicio).total_seconds() / 60
+    return round(inicio / total * 100, 3), round(duracao / total * 100, 3)
 
-    Cada célula é ('livre', 1, hora) ou ('reserva', quantos_blocos, reserva),
-    para o template desenhar com colspan.
+
+def montar_grade(dia, aeronaves, reservas, agora=None):
+    """Monta a agenda: para cada aeronave, os blocos de 30 min e as reservas.
+
+    Os blocos ficam por baixo (clicáveis quando livres e no futuro); as
+    reservas são desenhadas por cima, posicionadas em % da linha do tempo.
     """
-    blocos = horarios_do_dia()
+    agora = agora or datetime.now()
     abertura = datetime.combine(dia, datetime.min.time()).replace(hour=HORA_ABERTURA)
     passo = timedelta(minutes=MINUTOS_BLOCO)
 
     grade = []
     for aeronave in aeronaves:
-        da_aeronave = [r for r in reservas if r.aeronave_id == aeronave.id]
-        celulas = []
-        i = 0
-        while i < len(blocos):
+        da_aeronave = sorted((r for r in reservas if r.aeronave_id == aeronave.id), key=lambda r: r.inicio)
+        blocos = []
+        for i, hora in enumerate(horarios_do_dia()):
             momento = abertura + i * passo
-            reserva = next((r for r in da_aeronave if r.inicio <= momento < r.fim), None)
-            if reserva:
-                tamanho = 0
-                while i + tamanho < len(blocos) and abertura + (i + tamanho) * passo < reserva.fim:
-                    tamanho += 1
-                celulas.append(('reserva', tamanho, reserva))
-                i += tamanho
-            else:
-                celulas.append(('livre', 1, blocos[i]))
-                i += 1
-        grade.append((aeronave, celulas))
+            ocupado = any(r.inicio <= momento < r.fim for r in da_aeronave)
+            blocos.append({'hora': hora, 'livre': not ocupado and momento > agora})
+        grade.append({
+            'aeronave': aeronave,
+            'blocos': blocos,
+            'reservas': [{'r': r, 'pos': posicao(r)} for r in da_aeronave],
+        })
     return grade
+
+
+def disponibilidade(dia, reservas):
+    """Divide o dia de uma aeronave em trechos livres e ocupados, em ordem.
+
+    Devolve [(inicio, fim, livre), ...] cobrindo do horário de abertura ao fechamento.
+    """
+    abertura = datetime.combine(dia, datetime.min.time()).replace(hour=HORA_ABERTURA)
+    fechamento = abertura.replace(hour=HORA_FECHAMENTO)
+    trechos = []
+    cursor = abertura
+    for r in sorted(reservas, key=lambda r: r.inicio):
+        if r.inicio > cursor:
+            trechos.append((cursor, r.inicio, True))
+        trechos.append((max(r.inicio, cursor), r.fim, False))
+        cursor = max(cursor, r.fim)
+    if cursor < fechamento:
+        trechos.append((cursor, fechamento, True))
+    return trechos
+
+
+def sugerir(inicio, fim, aeronave_id, aluno_id, instrutor_id, aeronaves, agora=None):
+    """Quando o horário pedido não está livre, procura alternativas.
+
+    - horario: o primeiro horário do mesmo dia, com a mesma duração, em que
+      aeronave, aluno e instrutor estão livres (ou None)
+    - aeronaves: outras aeronaves livres exatamente no horário pedido
+    """
+    agora = agora or datetime.now()
+    duracao = fim - inicio
+    passo = timedelta(minutes=MINUTOS_BLOCO)
+    candidato = inicio.replace(hour=HORA_ABERTURA, minute=0, second=0, microsecond=0)
+    fechamento = candidato.replace(hour=HORA_FECHAMENTO)
+
+    horario = None
+    melhor_distancia = None
+    while candidato + duracao <= fechamento:
+        if candidato >= agora and candidato != inicio:
+            if not conflitos(candidato, candidato + duracao, aeronave_id, aluno_id, instrutor_id):
+                distancia = abs(candidato - inicio)
+                if melhor_distancia is None or distancia < melhor_distancia:
+                    horario, melhor_distancia = (candidato, candidato + duracao), distancia
+        candidato += passo
+
+    livres = [
+        a for a in aeronaves
+        if a.id != aeronave_id and not conflitos(inicio, fim, a.id, aluno_id, instrutor_id)
+    ]
+    return {'horario': horario, 'aeronaves': livres}
+
+
+def resumo_do_dia(reservas, aeronaves):
+    """Números do topo da agenda: quantos voos e quantas horas no dia."""
+    horas = sum((r.fim - r.inicio).total_seconds() for r in reservas) / 3600
+    return {'voos': len(reservas), 'horas': horas, 'aeronaves': len(aeronaves)}

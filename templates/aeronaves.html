@@ -1,8 +1,9 @@
 {% extends 'base.html' %}
-{% block largura %}painel-medio{% endblock %}
+{% block largura %}conteudo-medio{% endblock %}
+{% block titulo %}{{ t.menu_aeronaves }}{% endblock %}
 {% block conteudo %}
-<h2>{{ t.menu_aeronaves }}</h2>
-<p class="legenda">{{ t.aeronave_dica }}</p>
+<div class="cabecalho-pagina"><h1>{{ t.menu_aeronaves }}</h1></div>
+<p class="apagado">{{ t.aeronave_dica }}</p>
 
 <table class="lista">
     <thead><tr><th>{{ t.matricula }}</th><th>{{ t.modelo }}</th><th>{{ t.status }}</th><th></th></tr></thead>
@@ -15,7 +16,7 @@
             <td>
                 <form method="POST" action="{{ url_for('alternar_aeronave', aeronave_id=a.id) }}">
                     <input type="hidden" name="csrf" value="{{ csrf }}">
-                    <button type="submit" class="botao-pequeno">{{ t.desativar if a.ativa else t.ativar }}</button>
+                    <button type="submit" class="botao-cancelar">{{ t.desativar if a.ativa else t.ativar }}</button>
                 </form>
             </td>
         </tr>
@@ -23,7 +24,7 @@
     </tbody>
 </table>
 
-<form method="POST" class="caixa-resultado">
+<form method="POST" class="cartao formulario-admin">
     <input type="hidden" name="csrf" value="{{ csrf }}">
     <div class="duas-colunas">
         <div>

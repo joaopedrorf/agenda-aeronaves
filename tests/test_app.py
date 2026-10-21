@@ -132,3 +132,36 @@ def test_formulario_sem_token_csrf_e_recusado(app):
     app.config['TESTING_SEM_CSRF'] = False
     resposta = app.test_client().post('/login', data={'email': 'x', 'senha': 'y'})
     assert resposta.status_code == 400
+
+
+def test_conflito_sugere_horario_e_outra_aeronave(client):
+    entrar(client, 'eduarda@demo.com')
+    # Demo: PR-ABC amanhã ocupado 08h-09h e 10h-11h30; Eduarda voa 10h-12h no PR-DEF
+    resposta = reservar(client, aeronave_id=id_de(Aeronave, matricula='PR-ABC'), inicio='08:00', fim='09:00')
+    pagina = resposta.text
+    assert 'Horário livre mais próximo' in pagina
+    assert 'Usar 07:00–08:00' in pagina or 'Usar 09:00–10:00' in pagina
+    assert 'Livres no mesmo horário' in pagina and 'PR-DEF' in pagina
+
+
+def test_agenda_mostra_resumo_e_proximo_voo(client):
+    entrar(client, 'carla@demo.com')
+    pagina = client.get(f'/?dia={AMANHA}').text
+    assert 'Voos no dia' in pagina
+    assert '5,5 h' in pagina          # 1 + 1,5 + 2 + 1 horas no dia seguinte
+    assert '08:00 · PR-ABC' in pagina  # próximo voo da Carla
+
+
+def test_nova_reserva_mostra_disponibilidade(client):
+    entrar(client, 'carla@demo.com')
+    abc = id_de(Aeronave, matricula='PR-ABC')
+    pagina = client.get(f'/reservas/nova?aeronave={abc}&dia={AMANHA}&hora=09:00').text
+    assert 'Disponibilidade' in pagina
+    assert '08:00–09:00' in pagina and 'Ocupado' in pagina
+
+
+def test_agenda_em_ingles_com_data_por_extenso(client):
+    entrar(client, 'carla@demo.com')
+    client.get('/idioma/en')
+    pagina = client.get('/?dia=2026-10-22').text
+    assert 'Thursday, October 22' in pagina

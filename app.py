@@ -91,6 +91,44 @@ def ler_data(texto, padrao=None):
         return padrao
 
 
+def data_por_extenso(dia):
+    """Ex: 'Quarta, 22 de outubro' / 'Wednesday, October 22'."""
+    t = textos()
+    return t['formato_dia'].format(semana=t['semana'][dia.weekday()],
+                                   dia=dia.day, mes=t['meses'][dia.month - 1])
+
+
+def data_curta(dia):
+    """Ex: 'Qua 22/10' / 'Wed 10/22'."""
+    t = textos()
+    return t['formato_curto'].format(semana=t['semana_curta'][dia.weekday()],
+                                     dia=dia.day, mes=dia.month)
+
+
+def reservas_do_dia(dia):
+    inicio_dia = datetime.combine(dia, datetime.min.time())
+    return Reserva.query.filter(
+        Reserva.cancelada.is_(False),
+        Reserva.inicio >= inicio_dia,
+        Reserva.inicio < inicio_dia + timedelta(days=1),
+    ).order_by(Reserva.inicio).all()
+
+
+def minhas_proximas():
+    """Reservas futuras de quem está logado (a secretaria vê as de todos)."""
+    consulta = Reserva.query.filter(Reserva.fim >= datetime.now(), Reserva.cancelada.is_(False))
+    if not current_user.is_admin:
+        consulta = consulta.filter(
+            (Reserva.aluno_id == current_user.id) | (Reserva.instrutor_id == current_user.id))
+    return consulta.order_by(Reserva.inicio)
+
+
+def iniciais(nome):
+    nome = nome.removeprefix('Cmte.').strip()  # 'Cmte. Ana Souza' vira 'AS'
+    partes = nome.split()
+    return ''.join(p[0] for p in (partes[:1] + partes[-1:] if len(partes) > 1 else partes)) or '?'
+
+
 def registrar_rotas(app):
 
     @app.before_request
@@ -107,6 +145,11 @@ def registrar_rotas(app):
             'idioma': idioma_atual(),
             'csrf': token_csrf(),
             'demo': app.config['DEMO'],
+            'iniciais': iniciais,
+            'data_curta': data_curta,
+            'pagina': request.endpoint,
+            'abertura': regras.HORA_ABERTURA,
+            'fechamento': regras.HORA_FECHAMENTO,
         }
 
     @app.errorhandler(403)
@@ -153,20 +196,27 @@ def registrar_rotas(app):
     def agenda():
         dia = ler_data(request.args.get('dia'), date.today())
         aeronaves = Aeronave.query.filter_by(ativa=True).order_by(Aeronave.matricula).all()
-        inicio_dia = datetime.combine(dia, datetime.min.time())
-        reservas = Reserva.query.filter(
-            Reserva.cancelada.is_(False),
-            Reserva.inicio >= inicio_dia,
-            Reserva.inicio < inicio_dia + timedelta(days=1),
-        ).all()
+        reservas = reservas_do_dia(dia)
+        agora = datetime.now()
+        proximos = minhas_proximas().limit(3).all()
+        resumo = regras.resumo_do_dia(reservas, aeronaves)
+        horas_texto = f"{resumo['horas']:g}"
+        if idioma_atual() == 'pt':
+            horas_texto = horas_texto.replace('.', ',')  # 5,5 h
         return render_template(
             'agenda.html',
             dia=dia,
+            titulo_dia=data_por_extenso(dia),
             anterior=dia - timedelta(days=1),
             proximo=dia + timedelta(days=1),
-            blocos=regras.horarios_do_dia(),
-            grade=regras.montar_grade(dia, aeronaves, reservas),
-            agora=datetime.now(),
+            dias=[{'data': d, 'semana': textos()['semana_curta'][d.weekday()]}
+                  for d in (dia + timedelta(days=n) for n in range(-1, 4))],
+            horas=list(range(regras.HORA_ABERTURA, regras.HORA_FECHAMENTO)),
+            grade=regras.montar_grade(dia, aeronaves, reservas, agora),
+            resumo=resumo,
+            horas_texto=horas_texto,
+            proximos=proximos,
+            hoje=date.today(),
         )
 
     @app.route('/reservas/nova', methods=['GET', 'POST'])
@@ -177,23 +227,38 @@ def registrar_rotas(app):
         alunos = Usuario.query.filter_by(papel='aluno', ativo=True).order_by(Usuario.nome).all()
         instrutores = Usuario.query.filter_by(papel='instrutor', ativo=True).order_by(Usuario.nome).all()
 
+        def tela(form, erros=(), sugestao=None, status=200):
+            """Desenha o formulário com o quadro de disponibilidade da aeronave escolhida."""
+            dia = ler_data(form.get('data'), date.today())
+            escolhida = next((a for a in aeronaves if str(a.id) == str(form.get('aeronave_id'))),
+                             aeronaves[0] if aeronaves else None)
+            trechos = []
+            if escolhida:
+                trechos = regras.disponibilidade(
+                    dia, [r for r in reservas_do_dia(dia) if r.aeronave_id == escolhida.id])
+            return render_template(
+                'nova_reserva.html', aeronaves=aeronaves, alunos=alunos, instrutores=instrutores,
+                form=form, erros=list(erros), sugestao=sugestao, escolhida=escolhida,
+                trechos=trechos, dia=dia, dia_curto=data_curta(dia),
+            ), status
+
         if request.method == 'GET':
             # A agenda manda aeronave, dia e hora quando o usuário clica num horário livre
             form = {
                 'aeronave_id': request.args.get('aeronave', ''),
                 'data': request.args.get('dia', date.today().isoformat()),
                 'inicio': request.args.get('hora', '08:00'),
-                'fim': '',
+                'instrutor_id': request.args.get('instrutor', ''),
+                'aluno_id': request.args.get('aluno', ''),
+                'observacao': request.args.get('obs', ''),
             }
-            if form['inicio']:
-                try:
-                    h = datetime.strptime(form['inicio'], '%H:%M') + timedelta(hours=1)
-                    form['fim'] = h.strftime('%H:%M')
-                except ValueError:
-                    form['inicio'] = '08:00'
-                    form['fim'] = '09:00'
-            return render_template('nova_reserva.html', aeronaves=aeronaves, alunos=alunos,
-                                   instrutores=instrutores, form=form, erros=[])
+            try:
+                inicio = datetime.strptime(form['inicio'], '%H:%M')
+            except ValueError:
+                inicio = datetime.strptime('08:00', '%H:%M')
+                form['inicio'] = '08:00'
+            form['fim'] = request.args.get('fim') or (inicio + timedelta(hours=1)).strftime('%H:%M')
+            return tela(form)
 
         form = request.form
         erros = []
@@ -225,8 +290,10 @@ def registrar_rotas(app):
         if erros:
             mensagens = [t[e].format(abertura=regras.HORA_ABERTURA, fechamento=regras.HORA_FECHAMENTO)
                          for e in erros]
-            return render_template('nova_reserva.html', aeronaves=aeronaves, alunos=alunos,
-                                   instrutores=instrutores, form=form, erros=mensagens), 400
+            sugestao = None
+            if any(e.startswith('conflito_') for e in erros):
+                sugestao = regras.sugerir(inicio, fim, aeronave.id, aluno_id, instrutor_id, aeronaves)
+            return tela(form, mensagens, sugestao, status=400)
 
         db.session.add(Reserva(
             aeronave_id=aeronave.id, aluno_id=aluno_id, instrutor_id=instrutor_id,
@@ -261,8 +328,7 @@ def registrar_rotas(app):
                 (Reserva.aluno_id == current_user.id) | (Reserva.instrutor_id == current_user.id)
             )
         agora = datetime.now()
-        proximas = consulta.filter(Reserva.fim >= agora, Reserva.cancelada.is_(False)) \
-            .order_by(Reserva.inicio).all()
+        proximas = minhas_proximas().all()
         historico = consulta.filter((Reserva.fim < agora) | Reserva.cancelada.is_(True)) \
             .order_by(Reserva.inicio.desc()).limit(50).all()
         return render_template('minhas.html', proximas=proximas, historico=historico)

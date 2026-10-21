@@ -23,7 +23,7 @@
                 <form method="POST" action="{{ url_for('cancelar_reserva', reserva_id=r.id) }}" onsubmit="return confirm('{{ t.confirmar_cancelar }}')">
                     <input type="hidden" name="csrf" value="{{ csrf }}">
                     <input type="hidden" name="voltar" value="{{ url_for('minhas_reservas') }}">
-                    <button type="submit" class="botao-pequeno">{{ t.cancelar }}</button>
+                    <button type="submit" class="botao-cancelar">{{ t.cancelar }}</button>
                 </form>
                 {% endif %}
             </td>
