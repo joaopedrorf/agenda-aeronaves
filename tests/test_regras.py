@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from regras import horarios_do_dia, montar_grade, sobrepoe, validar_horario
+from regras import disponibilidade, horarios_do_dia, montar_grade, posicao, sobrepoe, validar_horario
 
 AGORA = datetime(2026, 10, 20, 6, 0)
 
@@ -57,10 +57,26 @@ class FakeAeronave:
     id = 1
 
 
-def test_grade_junta_blocos_da_reserva():
+def test_posicao_na_linha_do_tempo():
+    # 08:00 é 1h depois da abertura (07h) num dia de 12h: começa em 8,333% e ocupa 12,5%
+    assert posicao(FakeReserva(1, dt(8), dt(9, 30))) == (8.333, 12.5)
+
+
+def test_grade_marca_blocos_ocupados_e_passados():
     reserva = FakeReserva(1, dt(8), dt(9, 30))
-    [(_, celulas)] = montar_grade(date(2026, 10, 21), [FakeAeronave()], [reserva])
-    # 07:00 e 07:30 livres, depois a reserva ocupando 3 blocos (08:00 a 09:30)
-    assert celulas[0] == ('livre', 1, '07:00')
-    assert celulas[2] == ('reserva', 3, reserva)
-    assert sum(tamanho for _, tamanho, _ in celulas) == 24
+    [linha] = montar_grade(date(2026, 10, 21), [FakeAeronave()], [reserva], agora=dt(7, 15))
+    livres = [b['hora'] for b in linha['blocos'] if b['livre']]
+    assert '07:00' not in livres          # já passou
+    assert '07:30' in livres
+    assert '08:00' not in livres and '09:00' not in livres  # reservado
+    assert '09:30' in livres
+    assert linha['reservas'][0]['r'] is reserva
+
+
+def test_disponibilidade_divide_o_dia():
+    reservas = [FakeReserva(1, dt(10), dt(11, 30)), FakeReserva(1, dt(8), dt(9))]
+    trechos = disponibilidade(date(2026, 10, 21), reservas)
+    assert [(i.strftime('%H:%M'), f.strftime('%H:%M'), livre) for i, f, livre in trechos] == [
+        ('07:00', '08:00', True), ('08:00', '09:00', False), ('09:00', '10:00', True),
+        ('10:00', '11:30', False), ('11:30', '19:00', True),
+    ]

@@ -1,45 +1,68 @@
 <!DOCTYPE html>
-<html lang="{{ idioma }}">
+<html lang="{{ 'pt-BR' if idioma == 'pt' else 'en' }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{{ t.titulo }}</title>
-    <link rel="icon" type="image/png" href="{{ url_for('static', filename='aviao.png') }}">
+    <title>{% block titulo %}{{ t.titulo }}{% endblock %} · {{ t.titulo }}</title>
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='icone.svg') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
-<body>
+<body class="{% block classe_body %}{% endblock %}">
+    {% macro aviao(tamanho=28) -%}
+    <svg width="{{ tamanho }}" height="{{ tamanho }}" viewBox="0 0 24 24" fill="none" stroke="#F2B705" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/></svg>
+    {%- endmacro %}
+
+    {% macro idiomas(escuro=true) -%}
+    <div class="idiomas {% if not escuro %}idiomas-claro{% endif %}" role="group" aria-label="{{ t.idioma }}">
+        <a href="{{ url_for('trocar_idioma', codigo='pt') }}" class="{% if idioma == 'pt' %}ativo{% endif %}" lang="pt-BR">PT</a>
+        <a href="{{ url_for('trocar_idioma', codigo='en') }}" class="{% if idioma == 'en' %}ativo{% endif %}" lang="en">EN</a>
+    </div>
+    {%- endmacro %}
+
+    {% block corpo %}
     <header class="topo">
-        <a class="marca" href="{{ url_for('agenda') }}">
-            <img src="{{ url_for('static', filename='aviao.png') }}" alt=""> {{ t.titulo }}
-        </a>
-        {% if current_user.is_authenticated %}
-        <nav class="menu">
-            <a href="{{ url_for('agenda') }}">{{ t.menu_agenda }}</a>
-            <a href="{{ url_for('nova_reserva') }}">{{ t.menu_nova }}</a>
-            <a href="{{ url_for('minhas_reservas') }}">{{ t.menu_minhas }}</a>
-            {% if current_user.is_admin %}
-            <a href="{{ url_for('aeronaves') }}">{{ t.menu_aeronaves }}</a>
-            <a href="{{ url_for('usuarios') }}">{{ t.menu_usuarios }}</a>
-            {% endif %}
-        </nav>
-        {% endif %}
-        <div class="lado">
-            <a href="{{ url_for('trocar_idioma', codigo='pt') }}" class="{% if idioma == 'pt' %}ativo{% endif %}">🇧🇷 PT</a>
-            <a href="{{ url_for('trocar_idioma', codigo='en') }}" class="{% if idioma == 'en' %}ativo{% endif %}">🇺🇸 EN</a>
-            {% if current_user.is_authenticated %}
-            <span class="quem">{{ current_user.nome }} · {{ t['papel_' ~ current_user.papel] }}</span>
-            <form method="POST" action="{{ url_for('sair') }}" class="inline">
-                <input type="hidden" name="csrf" value="{{ csrf }}">
-                <button type="submit" class="botao-link">{{ t.sair }}</button>
-            </form>
-            {% endif %}
+        <div class="topo-conteudo">
+            <a class="marca" href="{{ url_for('agenda') }}">{{ aviao() }} {{ t.titulo }}</a>
+
+            <button type="button" class="botao-menu" aria-label="{{ t.abrir_menu }}" aria-expanded="false" aria-controls="menu-gaveta"
+                    onclick="var a = this.getAttribute('aria-expanded') === 'true'; this.setAttribute('aria-expanded', !a); document.getElementById('menu-gaveta').classList.toggle('aberta', !a);">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+            </button>
+            <div class="menu-gaveta" id="menu-gaveta">
+                <nav class="menu" aria-label="{{ t.menu_principal }}">
+                    {% set itens = [('agenda', t.menu_agenda), ('nova_reserva', t.menu_nova), ('minhas_reservas', t.menu_minhas)] %}
+                    {% if current_user.is_admin %}
+                        {% set itens = itens + [('aeronaves', t.menu_aeronaves), ('usuarios', t.menu_usuarios)] %}
+                    {% endif %}
+                    {% for rota, nome in itens %}
+                    <a href="{{ url_for(rota) }}" class="{% if pagina == rota %}ativo{% endif %}" {% if pagina == rota %}aria-current="page"{% endif %}>{{ nome }}</a>
+                    {% endfor %}
+                </nav>
+                <div class="lado">
+                    {{ idiomas() }}
+                    <div class="usuario">
+                        <div class="avatar" aria-hidden="true">{{ iniciais(current_user.nome) }}</div>
+                        <div>
+                            <div class="usuario-nome">{{ current_user.nome }}</div>
+                            <div class="usuario-papel">{{ t['papel_' ~ current_user.papel] }}</div>
+                        </div>
+                    </div>
+                    <form method="POST" action="{{ url_for('sair') }}">
+                        <input type="hidden" name="csrf" value="{{ csrf }}">
+                        <button type="submit" class="botao-sair">{{ t.sair }}</button>
+                    </form>
+                </div>
+            </div>
         </div>
     </header>
 
-    <main class="painel {% block largura %}{% endblock %}">
+    <main class="conteudo {% block largura %}{% endblock %}">
         {% with mensagens = get_flashed_messages(with_categories=true) %}
             {% for tipo, texto in mensagens %}
-            <div class="aviso aviso-{{ tipo }}">{{ texto }}</div>
+            <div class="aviso aviso-{{ tipo }}" role="status">{{ texto }}</div>
             {% endfor %}
         {% endwith %}
 
@@ -47,5 +70,6 @@
     </main>
 
     {% if demo %}<footer class="rodape">{{ t.rodape }}</footer>{% endif %}
+    {% endblock %}
 </body>
 </html>

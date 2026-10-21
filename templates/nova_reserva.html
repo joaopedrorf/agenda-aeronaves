@@ -1,58 +1,138 @@
 {% extends 'base.html' %}
+{% block titulo %}{{ t.menu_nova }}{% endblock %}
+{% block largura %}conteudo-medio{% endblock %}
+
 {% block conteudo %}
-<h2>{{ t.menu_nova }}</h2>
+<div class="duas-areas">
 
-{% if erros %}
-<div class="aviso aviso-erro">
-    {% for e in erros %}<p>{{ e }}</p>{% endfor %}
-</div>
-{% endif %}
-
-<form method="POST" action="{{ url_for('nova_reserva') }}">
+<form method="POST" action="{{ url_for('nova_reserva') }}" class="cartao formulario-reserva" id="form-reserva">
     <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div>
+        <a class="link-voltar" href="{{ url_for('agenda', dia=dia.isoformat()) }}">{{ t.voltar_agenda }}</a>
+        <h1>{{ t.menu_nova }}</h1>
+    </div>
 
-    <label for="aeronave_id">{{ t.aeronave }}</label>
-    <select id="aeronave_id" name="aeronave_id" required>
-        {% for a in aeronaves %}
-        <option value="{{ a.id }}" {% if form.aeronave_id|string == a.id|string %}selected{% endif %}>{{ a.matricula }} · {{ a.modelo }}</option>
-        {% endfor %}
-    </select>
+    {% if erros %}
+    <div class="alerta" role="alert">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+        <div>
+            {% if sugestao %}<div class="alerta-titulo">{{ t.horario_ocupado }}</div>{% endif %}
+            {% for e in erros %}<div>{{ e }}</div>{% endfor %}
 
-    {% if current_user.papel != 'aluno' %}
-    <label for="aluno_id">{{ t.aluno }}</label>
-    <select id="aluno_id" name="aluno_id" required>
-        {% for u in alunos %}
-        <option value="{{ u.id }}" {% if form.aluno_id|string == u.id|string %}selected{% endif %}>{{ u.nome }}</option>
-        {% endfor %}
-    </select>
+            {% if sugestao and (sugestao.horario or sugestao.aeronaves) %}
+            <div class="sugestoes">
+                {% if sugestao.horario %}
+                {% set ini = sugestao.horario[0].strftime('%H:%M') %}{% set fim = sugestao.horario[1].strftime('%H:%M') %}
+                <div>
+                    <span>{{ t.sugestao_horario }}</span>
+                    <a class="pilula" href="{{ url_for('nova_reserva', aeronave=form.aeronave_id, dia=form.data, hora=ini, fim=fim, instrutor=form.instrutor_id, aluno=form.aluno_id, obs=form.observacao) }}">{{ t.usar_horario.format(inicio=ini, fim=fim) }}</a>
+                </div>
+                {% endif %}
+                {% if sugestao.aeronaves %}
+                <div>
+                    <span>{{ t.sugestao_aeronave }}</span>
+                    {% for a in sugestao.aeronaves %}
+                    <a class="pilula" href="{{ url_for('nova_reserva', aeronave=a.id, dia=form.data, hora=form.inicio, fim=form.fim, instrutor=form.instrutor_id, aluno=form.aluno_id, obs=form.observacao) }}">{{ a.matricula }}</a>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
     {% endif %}
 
-    <label for="instrutor_id">{{ t.instrutor }}</label>
-    <select id="instrutor_id" name="instrutor_id">
-        <option value="">{{ t.sem_instrutor }}</option>
-        {% for u in instrutores %}
-        {% set escolhido = form.instrutor_id|string == u.id|string or (not form.instrutor_id and current_user.id == u.id) %}
-        <option value="{{ u.id }}" {% if escolhido %}selected{% endif %}>{{ u.nome }}</option>
-        {% endfor %}
-    </select>
-
-    <label for="data">{{ t.data }}</label>
-    <input type="date" id="data" name="data" value="{{ form.data }}" required>
-
-    <div class="duas-colunas">
-        <div>
-            <label for="inicio">{{ t.inicio }}</label>
-            <input type="time" id="inicio" name="inicio" value="{{ form.inicio }}" step="1800" required>
+    <fieldset class="escolha-aeronave">
+        <legend>{{ t.aeronave }}</legend>
+        <div class="cartoes-aeronave">
+            {% for a in aeronaves %}
+            <label class="opcao-aeronave">
+                <input type="radio" name="aeronave_id" value="{{ a.id }}" required {% if escolhida and escolhida.id == a.id %}checked{% endif %} onchange="atualizarQuadro()">
+                <strong>{{ a.matricula }}</strong>
+                <span>{{ a.modelo }}</span>
+            </label>
+            {% endfor %}
         </div>
-        <div>
+    </fieldset>
+
+    {% if current_user.papel != 'aluno' %}
+    <div class="campo">
+        <label for="aluno_id">{{ t.aluno }}</label>
+        <select id="aluno_id" name="aluno_id" required>
+            {% for u in alunos %}
+            <option value="{{ u.id }}" {% if form.aluno_id|string == u.id|string %}selected{% endif %}>{{ u.nome }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    {% endif %}
+
+    <div class="campo">
+        <label for="instrutor_id">{{ t.instrutor }}</label>
+        <select id="instrutor_id" name="instrutor_id">
+            <option value="">{{ t.sem_instrutor }}</option>
+            {% for u in instrutores %}
+            {% set escolhido = form.instrutor_id|string == u.id|string or (not form.instrutor_id and current_user.id == u.id) %}
+            <option value="{{ u.id }}" {% if escolhido %}selected{% endif %}>{{ u.nome }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="tres-colunas">
+        <div class="campo">
+            <label for="data">{{ t.data }}</label>
+            <input type="date" id="data" name="data" value="{{ form.data }}" required onchange="atualizarQuadro()">
+        </div>
+        <div class="campo">
+            <label for="inicio">{{ t.inicio }}</label>
+            <input type="time" id="inicio" name="inicio" value="{{ form.inicio }}" step="1800" required {% if erros %}aria-invalid="true"{% endif %}>
+        </div>
+        <div class="campo">
             <label for="fim">{{ t.fim }}</label>
             <input type="time" id="fim" name="fim" value="{{ form.fim }}" step="1800" required>
         </div>
     </div>
 
-    <label for="observacao">{{ t.observacao }}</label>
-    <input type="text" id="observacao" name="observacao" value="{{ form.observacao or '' }}" maxlength="200" placeholder="{{ t.observacao_dica }}">
+    <div class="campo">
+        <label for="observacao">{{ t.observacao }}</label>
+        <input type="text" id="observacao" name="observacao" value="{{ form.observacao or '' }}" maxlength="200" placeholder="{{ t.observacao_dica }}">
+    </div>
 
-    <button type="submit">{{ t.reservar }}</button>
+    <button type="submit" class="botao-grande">{{ t.confirmar_reserva }}</button>
 </form>
+
+{% if escolhida %}
+<aside class="cartao quadro-disponibilidade" aria-label="{{ t.disponibilidade }}">
+    <div>
+        <div class="sobretitulo">{{ escolhida.matricula }} · {{ dia_curto }}</div>
+        <h2>{{ t.disponibilidade }}</h2>
+    </div>
+    <ul class="trechos">
+        {% for ini, fim, livre in trechos %}
+        <li class="{{ 'trecho-livre' if livre else 'trecho-ocupado' }}">
+            <span>{{ ini.strftime('%H:%M') }}–{{ fim.strftime('%H:%M') }}</span>
+            <strong>{{ t.livre if livre else t.ocupado }}</strong>
+        </li>
+        {% endfor %}
+    </ul>
+    <p class="apagado">{{ t.regras_resumo.format(abertura=abertura, fechamento=fechamento) }}</p>
+</aside>
+{% endif %}
+
+</div>
+
+<script>
+// Trocar a aeronave ou a data recarrega a página para atualizar o quadro de disponibilidade,
+// mantendo o que já foi preenchido no formulário.
+function atualizarQuadro() {
+    const f = document.getElementById('form-reserva');
+    const escolhida = f.querySelector('input[name=aeronave_id]:checked');
+    const params = new URLSearchParams({
+        aeronave: escolhida ? escolhida.value : '',
+        dia: f.data.value, hora: f.inicio.value, fim: f.fim.value,
+        instrutor: f.instrutor_id.value, obs: f.observacao.value,
+    });
+    if (f.aluno_id) params.set('aluno', f.aluno_id.value);
+    window.location = '{{ url_for('nova_reserva') }}?' + params.toString();
+}
+</script>
 {% endblock %}

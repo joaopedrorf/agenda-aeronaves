@@ -11,19 +11,24 @@ Sistema web para aeroclubes e escolas de aviação organizarem o uso da frota: a
 ### O que ele faz
 
 - **Login** com três perfis: aluno, instrutor e administrador (secretaria).
-- **Agenda do dia** em grade: uma linha por aeronave, blocos de 30 minutos. Clique num horário livre para reservar.
+- **Agenda do dia** em linha do tempo: uma linha por aeronave, blocos de 30 minutos. Clique num horário livre para reservar. Seu voo aparece em amarelo e o voo solo com borda tracejada.
+- **Resumo do dia**: quantos voos, quantas horas reservadas, aeronaves disponíveis e o seu próximo voo.
 - **Reserva** com aeronave, aluno, instrutor (ou voo solo), início, fim e observação.
-- **Bloqueio de conflitos**: a mesma aeronave, o mesmo instrutor ou o mesmo aluno não ficam em dois voos ao mesmo tempo.
+- **Bloqueio de conflitos**: a mesma aeronave, o mesmo instrutor ou o mesmo aluno não ficam em dois voos ao mesmo tempo. Quando há choque, o sistema sugere o horário livre mais próximo e outras aeronaves livres no mesmo horário.
+- **Quadro de disponibilidade** ao lado do formulário, mostrando os trechos livres e ocupados da aeronave escolhida.
 - **Regras do aeroclube**: horário de funcionamento (07h às 19h), máximo de 4 horas por reserva, sem reservas no passado. Tudo configurável em `regras.py`.
 - **Cancelamento** pelo próprio aluno, pelo instrutor do voo ou pela secretaria. O histórico fica guardado.
 - **Administração**: cadastro de aeronaves (com opção de tirar da agenda durante a manutenção) e de usuários.
 - **Bilíngue**: português e inglês, trocando com um clique.
+- **Funciona no celular**: a agenda vira uma lista por aeronave, com faixa de dias e botão "Reservar" sempre à mão.
 
-![Conflito de horário](docs/conflito.png)
+| Login | Conflito com sugestão | Celular |
+|---|---|---|
+| ![Login](docs/login.png) | ![Conflito de horário](docs/conflito.png) | ![Celular](docs/celular.png) |
 
 ### Tecnologias
 
-Python, Flask, SQLAlchemy (SQLite no computador, PostgreSQL em produção), Flask-Login, senhas com hash (Werkzeug), proteção CSRF nos formulários e testes com pytest.
+Python, Flask, SQLAlchemy (SQLite no computador, PostgreSQL em produção), Flask-Login, senhas com hash (Werkzeug), proteção CSRF nos formulários e testes com pytest. O visual (azul-marinho, amarelo de aviação, fontes IBM Plex e a ilustração do painel de instrumentos em SVG) foi desenhado primeiro como protótipo e depois aplicado em HTML e CSS puros, sem framework.
 
 ### Como rodar
 
@@ -59,17 +64,20 @@ A web app for flying clubs and flight schools to manage their fleet: students an
 ### Features
 
 - **Sign in** with three roles: student, instructor and administrator (front desk).
-- **Daily schedule** grid: one row per aircraft, 30-minute slots. Click a free slot to book it.
+- **Daily timeline**: one row per aircraft, 30-minute slots. Click a free slot to book it. Your flights show in yellow, solo flights with a dashed border.
+- **Day summary**: number of flights, hours booked, aircraft available and your next flight.
 - **Bookings** with aircraft, student, instructor (or solo flight), start, end and a note.
-- **Conflict checks**: the same aircraft, instructor or student can never be in two flights at once.
+- **Conflict checks**: the same aircraft, instructor or student can never be in two flights at once. On a clash, the app suggests the closest free time and other aircraft free at the same time.
+- **Availability panel** next to the form, listing the chosen aircraft's free and booked periods.
 - **Club rules**: opening hours (07:00 to 19:00), 4 hours max per booking, no bookings in the past. All configurable in `regras.py`.
 - **Cancellation** by the student, the flight's instructor or the front desk. History is kept.
 - **Admin**: manage aircraft (take one off the schedule during maintenance) and users.
 - **Bilingual**: Portuguese and English, switched with one click.
+- **Mobile friendly**: on a phone the schedule becomes a list per aircraft, with a day strip and a floating "Book" button.
 
 ### Tech stack
 
-Python, Flask, SQLAlchemy (SQLite locally, PostgreSQL in production), Flask-Login, hashed passwords (Werkzeug), CSRF protection on forms and pytest tests.
+Python, Flask, SQLAlchemy (SQLite locally, PostgreSQL in production), Flask-Login, hashed passwords (Werkzeug), CSRF protection on forms and pytest tests. The look (navy, aviation yellow, IBM Plex fonts and an SVG instrument panel illustration) was prototyped first and then built in plain HTML and CSS, with no framework.
 
 ### Running it
 

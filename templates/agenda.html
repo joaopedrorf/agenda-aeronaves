@@ -1,55 +1,159 @@
 {% extends 'base.html' %}
-{% block largura %}painel-largo{% endblock %}
-{% block conteudo %}
-<h2>{{ t.menu_agenda }}</h2>
+{% block titulo %}{{ t.menu_agenda }}{% endblock %}
+{% block largura %}conteudo-largo{% endblock %}
 
-<form method="GET" class="navegar-dia">
-    <a class="botao-secundario" href="{{ url_for('agenda', dia=anterior.isoformat()) }}">{{ t.anterior }}</a>
-    <input type="date" name="dia" value="{{ dia.isoformat() }}" onchange="this.form.submit()" aria-label="{{ t.dia }}">
-    <a class="botao-secundario" href="{{ url_for('agenda') }}">{{ t.hoje }}</a>
-    <a class="botao-secundario" href="{{ url_for('agenda', dia=proximo.isoformat()) }}">{{ t.proximo }}</a>
-</form>
+{% macro horario(r) %}{{ r.inicio.strftime('%H:%M') }}–{{ r.fim.strftime('%H:%M') }}{% endmacro %}
+{% macro classe_voo(r) %}{% if current_user.id in (r.aluno_id, r.instrutor_id) %}voo-meu{% elif not r.instrutor_id %}voo-solo{% else %}voo-instrucao{% endif %}{% endmacro %}
+
+{% block conteudo %}
+{# Faixa de dias: só aparece no celular #}
+<nav class="faixa-dias" aria-label="{{ t.dia }}">
+    {% for d in dias %}
+    <a href="{{ url_for('agenda', dia=d.data.isoformat()) }}" class="{% if d.data == dia %}ativo{% endif %}" {% if d.data == dia %}aria-current="date"{% endif %}>
+        <span>{{ d.semana }}</span><strong>{{ d.data.day }}</strong>
+    </a>
+    {% endfor %}
+</nav>
+
+<div class="cabecalho-pagina">
+    <div>
+        <div class="sobretitulo">{{ t.agenda_frota }}</div>
+        <h1>{{ titulo_dia }}</h1>
+    </div>
+    <div class="acoes-dia">
+        <a class="botao-icone" href="{{ url_for('agenda', dia=anterior.isoformat()) }}" aria-label="{{ t.dia_anterior }}">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+        </a>
+        <a class="botao-contorno" href="{{ url_for('agenda') }}">{{ t.hoje }}</a>
+        <a class="botao-icone" href="{{ url_for('agenda', dia=proximo.isoformat()) }}" aria-label="{{ t.dia_seguinte }}">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+        </a>
+        <form method="GET" class="escolher-dia">
+            <label class="so-leitor" for="dia">{{ t.dia }}</label>
+            <input type="date" id="dia" name="dia" value="{{ dia.isoformat() }}" onchange="this.form.submit()">
+        </form>
+        <a class="botao-principal" href="{{ url_for('nova_reserva', dia=dia.isoformat()) }}">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+            {{ t.menu_nova }}
+        </a>
+    </div>
+</div>
+
+<div class="resumo">
+    <div class="cartao-numero"><div class="rotulo">{{ t.voos_no_dia }}</div><div class="numero">{{ resumo.voos }}</div></div>
+    <div class="cartao-numero"><div class="rotulo">{{ t.horas_reservadas }}</div><div class="numero">{{ horas_texto }} h</div></div>
+    <div class="cartao-numero"><div class="rotulo">{{ t.aeronaves_disponiveis }}</div><div class="numero">{{ resumo.aeronaves }}</div></div>
+    <div class="cartao-numero">
+        <div class="rotulo">{{ t.proximo_voo_clube if current_user.is_admin else t.seu_proximo_voo }}</div>
+        {% if proximos %}
+        <div class="numero numero-mono">{{ proximos[0].inicio.strftime('%H:%M') }} · {{ proximos[0].aeronave.matricula }}</div>
+        {% if proximos[0].inicio.date() != hoje %}<div class="rotulo">{{ data_curta(proximos[0].inicio.date()) }}</div>{% endif %}
+        {% else %}
+        <div class="numero numero-pequeno">{{ t.sem_proximo }}</div>
+        {% endif %}
+    </div>
+</div>
 
 {% if not grade %}
-    <p>{{ t.sem_aeronaves }}</p>
+<p class="vazio">{{ t.sem_aeronaves }}</p>
 {% else %}
-<p class="legenda">{{ t.legenda }}</p>
-<div class="rolagem">
-<table class="grade">
-    <thead>
-        <tr>
-            <th>{{ t.aeronave }}</th>
-            {% for hora in blocos %}
-            <th class="hora">{% if hora.endswith(':00') %}{{ hora[:2] }}h{% endif %}</th>
+
+{# ---------- Computador: linha do tempo ---------- #}
+<section class="cartao grade" aria-label="{{ t.grade_horarios }}">
+    <div class="grade-topo">
+        <p>{{ t.dica_grade.format(abertura=horas[0], fechamento=horas[-1] + 1) }}</p>
+        <div class="legenda">
+            <span><i class="amostra voo-instrucao"></i>{{ t.com_instrutor }}</span>
+            <span><i class="amostra voo-solo"></i>{{ t.solo }}</span>
+            <span><i class="amostra voo-meu"></i>{{ t.seu_voo }}</span>
+        </div>
+    </div>
+    <div class="rolagem">
+        <div class="grade-tabela" style="--horas: {{ horas | length }}">
+            <div class="grade-linha grade-cabecalho">
+                <div class="grade-aeronave">{{ t.aeronave }}</div>
+                <div class="grade-horas">{% for h in horas %}<span>{{ '%02d' % h }}</span>{% endfor %}</div>
+            </div>
+            {% for linha in grade %}
+            <div class="grade-linha">
+                <div class="grade-aeronave">
+                    <strong>{{ linha.aeronave.matricula }}</strong>
+                    <small>{{ linha.aeronave.modelo }}</small>
+                </div>
+                <div class="trilha">
+                    <div class="blocos">
+                        {% for b in linha.blocos %}
+                            {% if b.livre %}
+                            <a href="{{ url_for('nova_reserva', aeronave=linha.aeronave.id, dia=dia.isoformat(), hora=b.hora) }}" aria-label="{{ t.livre }} {{ linha.aeronave.matricula }} {{ b.hora }}" title="{{ b.hora }}"><span aria-hidden="true">+</span></a>
+                            {% else %}
+                            <span class="bloco-indisponivel"></span>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                    {% for item in linha.reservas %}
+                    {% set r = item.r %}
+                    <div class="voo {{ classe_voo(r) }}" style="left: {{ item.pos[0] }}%; width: calc({{ item.pos[1] }}% - 4px)"
+                         title="{{ horario(r) }} · {{ r.aluno.nome }} · {{ r.instrutor.nome if r.instrutor else t.solo }}{% if r.observacao %} · {{ r.observacao }}{% endif %}">
+                        <strong>{{ horario(r) }}</strong>
+                        <span class="voo-nome">{{ t.voce if r.aluno_id == current_user.id else r.aluno.nome }}</span>
+                        <span>{{ r.instrutor.nome if r.instrutor else t.solo }}{% if r.observacao %} · {{ r.observacao }}{% endif %}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
             {% endfor %}
-        </tr>
-    </thead>
-    <tbody>
-        {% for aeronave, celulas in grade %}
-        <tr>
-            <th class="nome-aeronave">{{ aeronave.matricula }}<small>{{ aeronave.modelo }}</small></th>
-            {% for tipo, tamanho, item in celulas %}
-                {% if tipo == 'reserva' %}
-                <td colspan="{{ tamanho }}" class="ocupado {% if not item.instrutor_id %}solo{% endif %}
-                    {% if current_user.id in (item.aluno_id, item.instrutor_id) %}minha{% endif %}"
-                    title="{{ item.inicio.strftime('%H:%M') }}–{{ item.fim.strftime('%H:%M') }} · {{ item.observacao }}">
-                    <strong>{{ item.inicio.strftime('%H:%M') }}–{{ item.fim.strftime('%H:%M') }}</strong>
-                    <span>{{ item.aluno.nome }}</span>
-                    <span>{{ item.instrutor.nome if item.instrutor else t.solo }}</span>
-                </td>
-                {% else %}
-                    {% set momento = dia.isoformat() ~ ' ' ~ item %}
-                    {% if momento > agora.strftime('%Y-%m-%d %H:%M') %}
-                    <td class="livre"><a href="{{ url_for('nova_reserva', aeronave=aeronave.id, dia=dia.isoformat(), hora=item) }}" title="{{ t.livre }} {{ item }}"></a></td>
-                    {% else %}
-                    <td class="passado"></td>
-                    {% endif %}
-                {% endif %}
-            {% endfor %}
-        </tr>
+        </div>
+    </div>
+</section>
+
+{# ---------- Celular: lista por aeronave ---------- #}
+<div class="lista-celular">
+    {% for linha in grade %}
+    <section class="cartao cartao-aeronave">
+        <div class="cartao-aeronave-topo"><strong>{{ linha.aeronave.matricula }}</strong><span>{{ linha.aeronave.modelo }}</span></div>
+        {% for item in linha.reservas %}
+        {% set r = item.r %}
+        <div class="voo-item {{ classe_voo(r) }}">
+            <div class="voo-item-hora">{{ r.inicio.strftime('%H:%M') }}<br>{{ r.fim.strftime('%H:%M') }}</div>
+            <div>
+                <div class="voo-nome">{{ t.seu_voo if r.aluno_id == current_user.id else r.aluno.nome }}</div>
+                <div>{{ r.instrutor.nome if r.instrutor else t.solo }}</div>
+            </div>
+        </div>
+        {% else %}
+        <p class="vazio-pequeno">{{ t.dia_livre }}</p>
         {% endfor %}
-    </tbody>
-</table>
+    </section>
+    {% endfor %}
 </div>
 {% endif %}
+
+{% if proximos %}
+<section class="proximos">
+    <div class="titulo-secao">
+        <h2>{{ t.proximos_clube if current_user.is_admin else t.seus_proximos }}</h2>
+        <a href="{{ url_for('minhas_reservas') }}">{{ t.ver_todas }}</a>
+    </div>
+    <div class="cartoes-voos">
+        {% for r in proximos %}
+        <div class="cartao cartao-voo">
+            <div class="cartao-voo-hora">{{ data_curta(r.inicio.date()) }} · {{ horario(r) }}</div>
+            <div>{{ r.aeronave.matricula }} · {{ r.instrutor.nome if r.instrutor else t.solo }}</div>
+            {% if current_user.is_admin or current_user.is_instrutor %}<div class="apagado">{{ r.aluno.nome }}</div>{% endif %}
+            {% if r.observacao %}<div class="apagado">{{ r.observacao }}</div>{% endif %}
+            <form method="POST" action="{{ url_for('cancelar_reserva', reserva_id=r.id) }}" onsubmit="return confirm('{{ t.confirmar_cancelar }}')">
+                <input type="hidden" name="csrf" value="{{ csrf }}">
+                <input type="hidden" name="voltar" value="{{ url_for('agenda', dia=dia.isoformat()) }}">
+                <button type="submit" class="botao-cancelar">{{ t.cancelar }}</button>
+            </form>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}
+
+<a class="botao-flutuante" href="{{ url_for('nova_reserva', dia=dia.isoformat()) }}">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+    {{ t.reservar }}
+</a>
 {% endblock %}

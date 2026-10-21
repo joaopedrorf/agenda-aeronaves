@@ -1,7 +1,8 @@
 {% extends 'base.html' %}
-{% block largura %}painel-medio{% endblock %}
+{% block largura %}conteudo-medio{% endblock %}
+{% block titulo %}{{ t.menu_usuarios }}{% endblock %}
 {% block conteudo %}
-<h2>{{ t.menu_usuarios }}</h2>
+<div class="cabecalho-pagina"><h1>{{ t.menu_usuarios }}</h1></div>
 
 <div class="rolagem">
 <table class="lista">
@@ -17,7 +18,7 @@
                 {% if u.id != current_user.id %}
                 <form method="POST" action="{{ url_for('alternar_usuario', usuario_id=u.id) }}">
                     <input type="hidden" name="csrf" value="{{ csrf }}">
-                    <button type="submit" class="botao-pequeno">{{ t.desativar if u.ativo else t.ativar }}</button>
+                    <button type="submit" class="botao-cancelar">{{ t.desativar if u.ativo else t.ativar }}</button>
                 </form>
                 {% endif %}
             </td>
@@ -27,7 +28,7 @@
 </table>
 </div>
 
-<form method="POST" class="caixa-resultado">
+<form method="POST" class="cartao formulario-admin">
     <input type="hidden" name="csrf" value="{{ csrf }}">
     <div class="duas-colunas">
         <div>
