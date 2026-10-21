@@ -55,6 +55,10 @@ Copie `.env.exemplo` para `.env`. Variáveis:
 - `DATABASE_URL`: endereço do PostgreSQL. Sem ela, usa um arquivo SQLite local.
 - `DEMO`: `1` cria dados de exemplo quando o banco está vazio; `0` começa limpo.
 
+### Publicar no Render
+
+O arquivo `render.yaml` já traz a configuração: no Render, clique em **New > Blueprint** e escolha este repositório. O site usa os dados de demonstração, que voltam ao estado inicial a cada nova publicação.
+
 ---
 
 ## 🇺🇸 English
@@ -93,6 +97,10 @@ Run the tests with `python -m pytest`.
 ### Settings
 
 Copy `.env.exemplo` to `.env`. `SECRET_KEY` protects sessions, `DATABASE_URL` points to PostgreSQL (SQLite is used when it is missing) and `DEMO=1` seeds sample data into an empty database.
+
+### Deploying on Render
+
+`render.yaml` holds the setup: on Render, click **New > Blueprint** and pick this repository. The site runs on demo data, which resets on every deploy.
 
 ---
 
