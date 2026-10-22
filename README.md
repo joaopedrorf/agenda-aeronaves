@@ -1,5 +1,10 @@
 # ✈️ Agenda de Aeronaves · Aircraft Scheduling
 
+[![Testes](https://github.com/joaopedrorf/agenda-aeronaves/actions/workflows/testes.yml/badge.svg)](https://github.com/joaopedrorf/agenda-aeronaves/actions/workflows/testes.yml)
+![Python](https://img.shields.io/badge/Python-3.12-1E4E8C)
+![Flask](https://img.shields.io/badge/Flask-3.0-0B1F3A)
+![Licença MIT](https://img.shields.io/badge/licen%C3%A7a-MIT-F2B705)
+
 🇧🇷 [Português](#-português) · 🇺🇸 [English](#-english)
 
 **🌐 Ver online / Live demo: [agenda-aeronaves.onrender.com](https://agenda-aeronaves.onrender.com)** · senha / password `demo123`
@@ -31,6 +36,29 @@ Sistema web para aeroclubes e escolas de aviação organizarem o uso da frota: a
 ### Tecnologias
 
 Python, Flask, SQLAlchemy (SQLite no computador, PostgreSQL em produção), Flask-Login, senhas com hash (Werkzeug), proteção CSRF nos formulários e testes com pytest. O visual (azul-marinho, amarelo de aviação, fontes IBM Plex e a ilustração do painel de instrumentos em SVG) foi desenhado primeiro como protótipo e depois aplicado em HTML e CSS puros, sem framework.
+
+### Segurança e dados
+
+- **Onde ficam os dados**: usuários, aeronaves e reservas ficam num banco de dados (SQLite no computador, PostgreSQL em produção). Na demonstração online o banco é recriado a cada reinício, então nenhum dado real fica guardado.
+- **Senhas**: nunca são guardadas como texto. O banco guarda só um *hash* (scrypt, via Werkzeug): dá para conferir se a senha digitada está certa, mas não dá para descobrir a senha a partir dele.
+- **Login**: depois de 5 senhas erradas em 15 minutos, o acesso fica bloqueado por 15 minutos. A mensagem de erro é a mesma para e-mail inexistente e senha errada, para não revelar quem tem conta.
+- **Sessão**: cookie protegido (`HttpOnly`, `SameSite=Lax` e `Secure` em produção), sessão nova a cada login e expiração em 8 horas.
+- **Formulários**: todos têm token CSRF, que impede outro site de enviar ações em nome do usuário.
+- **Permissões**: aluno só reserva para si; só a secretaria cadastra aeronaves e usuários; cada um só cancela os próprios voos.
+- **Cabeçalhos de segurança**: Content-Security-Policy, X-Frame-Options e outros, contra páginas falsas e scripts de terceiros.
+- **Fuso horário**: o servidor pode estar em outro país, mas todas as regras usam o horário do aeroclube (`FUSO_HORARIO`, padrão Brasília).
+
+### Estrutura do projeto
+
+| Arquivo | O que faz |
+|---|---|
+| `app.py` | Rotas e telas (login, agenda, reservas, administração) |
+| `regras.py` | Regras de agendamento: conflitos, horários, sugestões, fuso |
+| `modelos.py` | Tabelas do banco: usuário, aeronave, reserva |
+| `seguranca.py` | Limite de tentativas de login e cabeçalhos de segurança |
+| `textos.py` | Todos os textos em português e inglês |
+| `demo.py` | Aeroclube fictício para a demonstração |
+| `tests/` | 41 testes automáticos, que rodam no GitHub a cada envio |
 
 ### Como rodar
 
@@ -84,6 +112,16 @@ A web app for flying clubs and flight schools to manage their fleet: students an
 ### Tech stack
 
 Python, Flask, SQLAlchemy (SQLite locally, PostgreSQL in production), Flask-Login, hashed passwords (Werkzeug), CSRF protection on forms and pytest tests. The look (navy, aviation yellow, IBM Plex fonts and an SVG instrument panel illustration) was prototyped first and then built in plain HTML and CSS, with no framework.
+
+### Security and data
+
+- **Where data lives**: users, aircraft and bookings are stored in a database (SQLite locally, PostgreSQL in production). The online demo database is rebuilt on every restart, so no real data is kept.
+- **Passwords** are never stored as text, only as a scrypt hash (Werkzeug).
+- **Sign-in**: 5 wrong passwords in 15 minutes lock the account for 15 minutes; the same error message is shown for unknown e-mails and wrong passwords.
+- **Session**: protected cookie (`HttpOnly`, `SameSite=Lax`, `Secure` in production), a fresh session on every sign-in and an 8-hour expiry.
+- **Forms** carry CSRF tokens; **roles** limit who can book, cancel and manage the fleet and users.
+- **Security headers**: Content-Security-Policy, X-Frame-Options and more.
+- **Time zone**: the server may run elsewhere, but every rule uses the club's local time (`FUSO_HORARIO`, default Brasília).
 
 ### Running it
 

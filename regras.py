@@ -3,9 +3,15 @@
 Cada função de validação devolve uma lista de chaves de erro (ver textos.py).
 Lista vazia = reserva válida.
 """
+import os
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from modelos import Reserva
+
+# O servidor (Render) roda em UTC, mas o aeroclube vive no horário de Brasília.
+# Todas as horas do sistema são "hora local do aeroclube", sem fuso gravado no banco.
+FUSO = ZoneInfo(os.getenv('FUSO_HORARIO', 'America/Sao_Paulo'))
 
 # Horário de funcionamento do aeroclube e tamanho dos blocos da agenda.
 # Cada aeroclube tem o seu: basta mudar aqui.
@@ -13,6 +19,15 @@ HORA_ABERTURA = 7
 HORA_FECHAMENTO = 19
 MINUTOS_BLOCO = 30
 DURACAO_MAXIMA = timedelta(hours=4)
+
+
+def agora_local():
+    """Data e hora atuais no fuso do aeroclube."""
+    return datetime.now(FUSO).replace(tzinfo=None)
+
+
+def hoje_local():
+    return agora_local().date()
 
 
 def sobrepoe(inicio_a, fim_a, inicio_b, fim_b):
@@ -42,7 +57,7 @@ def conflitos(inicio, fim, aeronave_id, aluno_id, instrutor_id, ignorar_id=None)
 
 
 def validar_horario(inicio, fim, agora=None):
-    agora = agora or datetime.now()
+    agora = agora or agora_local()
     erros = []
     if fim <= inicio:
         return ['fim_antes_inicio']
@@ -96,7 +111,7 @@ def montar_grade(dia, aeronaves, reservas, agora=None):
     Os blocos ficam por baixo (clicáveis quando livres e no futuro); as
     reservas são desenhadas por cima, posicionadas em % da linha do tempo.
     """
-    agora = agora or datetime.now()
+    agora = agora or agora_local()
     abertura = datetime.combine(dia, datetime.min.time()).replace(hour=HORA_ABERTURA)
     passo = timedelta(minutes=MINUTOS_BLOCO)
 
@@ -142,7 +157,7 @@ def sugerir(inicio, fim, aeronave_id, aluno_id, instrutor_id, aeronaves, agora=N
       aeronave, aluno e instrutor estão livres (ou None)
     - aeronaves: outras aeronaves livres exatamente no horário pedido
     """
-    agora = agora or datetime.now()
+    agora = agora or agora_local()
     duracao = fim - inicio
     passo = timedelta(minutes=MINUTOS_BLOCO)
     candidato = inicio.replace(hour=HORA_ABERTURA, minute=0, second=0, microsecond=0)

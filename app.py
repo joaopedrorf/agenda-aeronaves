@@ -1,6 +1,6 @@
 import os
 import secrets
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 
 from dotenv import load_dotenv
 from flask import Flask, abort, flash, redirect, render_template, request, session, url_for
@@ -8,6 +8,7 @@ from flask_login import LoginManager, current_user, login_required, login_user, 
 
 from modelos import PAPEIS, Aeronave, Reserva, Usuario, db
 import regras
+from seguranca import LimitadorDeTentativas, aplicar_cabecalhos
 from textos import TEXTOS
 
 load_dotenv()
@@ -24,9 +25,23 @@ def endereco_banco():
 
 def create_app(config=None):
     app = Flask(__name__)
-    app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'troque-esta-chave-em-producao')
+    # Sem SECRET_KEY definida, cria uma aleatória: nunca usa uma chave fixa conhecida.
+    # (No Render o render.yaml gera uma; localmente, o login só cai ao reiniciar.)
+    app.config['SECRET_KEY'] = os.getenv('SECRET_KEY') or secrets.token_hex(32)
     app.config['SQLALCHEMY_DATABASE_URI'] = endereco_banco()
     app.config['DEMO'] = os.getenv('DEMO', '1') == '1'
+    # Cookie de sessão: invisível para JavaScript, não vai junto em links de outros
+    # sites e, em produção (HTTPS), só trafega criptografado
+    em_producao = bool(os.getenv('RENDER')) or os.getenv('COOKIE_SEGURO') == '1'
+    app.config.update(
+        SESSION_COOKIE_HTTPONLY=True,
+        SESSION_COOKIE_SAMESITE='Lax',
+        SESSION_COOKIE_SECURE=em_producao,
+        REMEMBER_COOKIE_HTTPONLY=True,
+        REMEMBER_COOKIE_SECURE=em_producao,
+        PERMANENT_SESSION_LIFETIME=timedelta(hours=8),
+    )
+    app.limitador = LimitadorDeTentativas()
     if config:
         app.config.update(config)
 
@@ -116,7 +131,7 @@ def reservas_do_dia(dia):
 
 def minhas_proximas():
     """Reservas futuras de quem está logado (a secretaria vê as de todos)."""
-    consulta = Reserva.query.filter(Reserva.fim >= datetime.now(), Reserva.cancelada.is_(False))
+    consulta = Reserva.query.filter(Reserva.fim >= regras.agora_local(), Reserva.cancelada.is_(False))
     if not current_user.is_admin:
         consulta = consulta.filter(
             (Reserva.aluno_id == current_user.id) | (Reserva.instrutor_id == current_user.id))
@@ -127,6 +142,24 @@ def iniciais(nome):
     nome = nome.removeprefix('Cmte.').strip()  # 'Cmte. Ana Souza' vira 'AS'
     partes = nome.split()
     return ''.join(p[0] for p in (partes[:1] + partes[-1:] if len(partes) > 1 else partes)) or '?'
+
+
+def contas_demo():
+    from demo import USUARIOS
+    return USUARIOS
+
+
+def eh_conta_demo(email):
+    return any(email == e for _, e, _ in contas_demo())
+
+
+def entrar_na_sessao(usuario):
+    """Começa uma sessão nova no login (evita reaproveitar uma sessão antiga)."""
+    idioma = idioma_atual()
+    session.clear()
+    session['idioma'] = idioma
+    session.permanent = True
+    login_user(usuario)
 
 
 def registrar_rotas(app):
@@ -157,6 +190,19 @@ def registrar_rotas(app):
         flash(textos()['sem_permissao'], 'erro')
         return redirect(url_for('agenda'))
 
+    @app.errorhandler(400)
+    @app.errorhandler(404)
+    @app.errorhandler(500)
+    def pagina_de_erro(erro):
+        codigo = getattr(erro, 'code', 500)
+        if codigo == 500:
+            db.session.rollback()
+        return render_template('erro.html', codigo=codigo), codigo
+
+    @app.after_request
+    def cabecalhos(resposta):
+        return aplicar_cabecalhos(resposta)
+
     @app.route('/idioma/<codigo>')
     def trocar_idioma(codigo):
         if codigo in TEXTOS:
@@ -175,29 +221,66 @@ def registrar_rotas(app):
             return redirect(url_for('agenda'))
         if request.method == 'POST':
             email = request.form.get('email', '').strip().lower()
+            chave = (request.remote_addr, email)
+            if app.limitador.bloqueado(chave):
+                flash(textos()['muitas_tentativas'], 'erro')
+                return render_template('login.html', contas_demo=contas_demo()), 429
             usuario = Usuario.query.filter_by(email=email).first()
             if usuario and usuario.ativo and usuario.conferir_senha(request.form.get('senha', '')):
-                login_user(usuario)
+                app.limitador.limpar(chave)
+                entrar_na_sessao(usuario)
                 return redirect(url_for('agenda'))
+            app.limitador.registrar_falha(chave)
+            # Mesma mensagem para e-mail inexistente e senha errada: não revela quem tem conta
             flash(textos()['login_invalido'], 'erro')
-        from demo import USUARIOS
-        return render_template('login.html', contas_demo=USUARIOS)
+        return render_template('login.html', contas_demo=contas_demo())
 
     @app.route('/sair', methods=['POST'])
     @login_required
     def sair():
         logout_user()
+        idioma = idioma_atual()
+        session.clear()
+        session['idioma'] = idioma
         return redirect(url_for('login'))
+
+    @app.route('/conta/senha', methods=['GET', 'POST'])
+    @login_required
+    def trocar_senha():
+        t = textos()
+        if request.method == 'POST':
+            atual = request.form.get('atual', '')
+            nova = request.form.get('nova', '')
+            if app.config['DEMO'] and eh_conta_demo(current_user.email):
+                flash(t['senha_demo'], 'erro')
+            elif not current_user.conferir_senha(atual):
+                flash(t['senha_atual_errada'], 'erro')
+            elif len(nova) < 8:
+                flash(t['senha_curta'], 'erro')
+            elif nova != request.form.get('confirmar', ''):
+                flash(t['senhas_diferentes'], 'erro')
+            else:
+                current_user.definir_senha(nova)
+                db.session.commit()
+                flash(t['senha_trocada'], 'ok')
+                return redirect(url_for('agenda'))
+        return render_template('senha.html')
+
+    @app.route('/saude')
+    def saude():
+        """O Render consulta esta página para saber se o site está no ar."""
+        db.session.execute(db.text('SELECT 1'))
+        return {'status': 'ok'}
 
     # ---------- Agenda ----------
 
     @app.route('/')
     @login_required
     def agenda():
-        dia = ler_data(request.args.get('dia'), date.today())
+        dia = ler_data(request.args.get('dia'), regras.hoje_local())
         aeronaves = Aeronave.query.filter_by(ativa=True).order_by(Aeronave.matricula).all()
         reservas = reservas_do_dia(dia)
-        agora = datetime.now()
+        agora = regras.agora_local()
         proximos = minhas_proximas().limit(3).all()
         resumo = regras.resumo_do_dia(reservas, aeronaves)
         horas_texto = f"{resumo['horas']:g}"
@@ -216,7 +299,7 @@ def registrar_rotas(app):
             resumo=resumo,
             horas_texto=horas_texto,
             proximos=proximos,
-            hoje=date.today(),
+            hoje=regras.hoje_local(),
         )
 
     @app.route('/reservas/nova', methods=['GET', 'POST'])
@@ -229,7 +312,7 @@ def registrar_rotas(app):
 
         def tela(form, erros=(), sugestao=None, status=200):
             """Desenha o formulário com o quadro de disponibilidade da aeronave escolhida."""
-            dia = ler_data(form.get('data'), date.today())
+            dia = ler_data(form.get('data'), regras.hoje_local())
             escolhida = next((a for a in aeronaves if str(a.id) == str(form.get('aeronave_id'))),
                              aeronaves[0] if aeronaves else None)
             trechos = []
@@ -246,7 +329,7 @@ def registrar_rotas(app):
             # A agenda manda aeronave, dia e hora quando o usuário clica num horário livre
             form = {
                 'aeronave_id': request.args.get('aeronave', ''),
-                'data': request.args.get('dia', date.today().isoformat()),
+                'data': request.args.get('dia', regras.hoje_local().isoformat()),
                 'inicio': request.args.get('hora', '08:00'),
                 'instrutor_id': request.args.get('instrutor', ''),
                 'aluno_id': request.args.get('aluno', ''),
@@ -327,7 +410,7 @@ def registrar_rotas(app):
             consulta = consulta.filter(
                 (Reserva.aluno_id == current_user.id) | (Reserva.instrutor_id == current_user.id)
             )
-        agora = datetime.now()
+        agora = regras.agora_local()
         proximas = minhas_proximas().all()
         historico = consulta.filter((Reserva.fim < agora) | Reserva.cancelada.is_(True)) \
             .order_by(Reserva.inicio.desc()).limit(50).all()
@@ -376,7 +459,7 @@ def registrar_rotas(app):
             papel = request.form.get('papel', 'aluno')
             if not nome or '@' not in email or papel not in PAPEIS:
                 flash(t['dados_invalidos'], 'erro')
-            elif len(senha) < 6:
+            elif len(senha) < 8:
                 flash(t['senha_curta'], 'erro')
             elif Usuario.query.filter_by(email=email).first():
                 flash(t['email_existe'], 'erro')

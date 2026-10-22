@@ -47,7 +47,7 @@
                         <div class="avatar" aria-hidden="true">{{ iniciais(current_user.nome) }}</div>
                         <div>
                             <div class="usuario-nome">{{ current_user.nome }}</div>
-                            <div class="usuario-papel">{{ t['papel_' ~ current_user.papel] }}</div>
+                            <div class="usuario-papel">{{ t['papel_' ~ current_user.papel] }} · <a class="link-senha" href="{{ url_for('trocar_senha') }}">{{ t.menu_senha }}</a></div>
                         </div>
                     </div>
                     <form method="POST" action="{{ url_for('sair') }}">
