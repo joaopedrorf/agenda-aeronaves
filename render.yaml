@@ -9,6 +9,7 @@ services:
     buildCommand: pip install -r requirements.txt
     # Um processo só, para o SQLite não ser criado duas vezes ao mesmo tempo
     startCommand: gunicorn app:app --workers 1 --threads 4
+    healthCheckPath: /saude
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.7
@@ -16,3 +17,5 @@ services:
         generateValue: true
       - key: DEMO
         value: "1"
+      - key: FUSO_HORARIO
+        value: America/Sao_Paulo

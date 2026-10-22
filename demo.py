@@ -2,9 +2,10 @@
 
 As reservas são criadas a partir de hoje, então a agenda nunca aparece vazia.
 """
-from datetime import date, datetime, time, timedelta
+from datetime import datetime, time, timedelta
 
 from modelos import Aeronave, Reserva, Usuario, db
+import regras
 
 SENHA_DEMO = 'demo123'
 
@@ -56,7 +57,7 @@ def criar_demo():
     db.session.flush()  # Gera os ids antes de criar as reservas
 
     for dias, matricula, aluno, instrutor, hora, duracao, obs in RESERVAS:
-        inicio = datetime.combine(date.today() + timedelta(days=dias), time(hour=hora))
+        inicio = datetime.combine(regras.hoje_local() + timedelta(days=dias), time(hour=hora))
         db.session.add(Reserva(
             aeronave_id=frota[matricula].id,
             aluno_id=pessoas[aluno].id,
