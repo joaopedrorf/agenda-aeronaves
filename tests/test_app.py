@@ -1,9 +1,10 @@
-from datetime import date, timedelta
+from datetime import timedelta
 
 from conftest import entrar
 from modelos import Aeronave, Reserva, Usuario, db
+import regras
 
-AMANHA = (date.today() + timedelta(days=1)).isoformat()
+AMANHA = (regras.hoje_local() + timedelta(days=1)).isoformat()
 
 
 def id_de(modelo, **filtro):
