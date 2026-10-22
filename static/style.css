@@ -752,3 +752,24 @@ input[aria-invalid="true"] { border: 2px solid #C2410C; }
     .login-chamada h1 { font-size: 30px; }
     .login-chamada p { font-size: 16px; }
 }
+
+/* ---------- Páginas de erro ---------- */
+
+.pagina-erro {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 48px 24px;
+    text-align: center;
+}
+
+.erro-codigo { font: 600 96px/1 var(--mono); color: var(--amarelo); }
+.pagina-erro p { margin: 0 0 12px 0; color: var(--texto-3); max-width: 420px; line-height: 1.5; }
+.pagina-erro .botao-principal { margin-left: 0; }
+
+.link-senha { color: var(--texto-claro); font-size: 13px; }
+.link-senha:hover { color: #FFFFFF; }
+.formulario-senha { flex: none; }
