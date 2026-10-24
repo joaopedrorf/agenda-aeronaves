@@ -22,6 +22,7 @@ AERONAVES = [
     ('PR-ABC', 'Cessna 152'),
     ('PR-DEF', 'Cessna 172'),
     ('PR-GHI', 'Piper PA-28'),
+    ('PR-JKL', 'Aero Boero AB-115'),
 ]
 
 # (dias a partir de hoje, aeronave, aluno, instrutor ou None, hora início, duração em horas, observação)
