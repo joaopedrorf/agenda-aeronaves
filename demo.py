@@ -34,6 +34,7 @@ RESERVAS = [
     (2, 'PR-ABC', 'eduarda', 'bruno', 9, 1, 'Toque e arremetida'),
     (2, 'PR-DEF', 'carla', 'ana', 13, 2, 'Navegação'),
     (3, 'PR-GHI', 'carla', 'bruno', 8, 1.5, 'Instrução: pane simulada'),
+    (2, 'PR-JKL', 'diego', 'ana', 16, 1, 'Instrução: estol'),
 ]
 
 
