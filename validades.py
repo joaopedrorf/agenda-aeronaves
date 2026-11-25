@@ -2,8 +2,16 @@
 import re
 from datetime import timedelta
 
+import regras
+
+
 # Mesmo relógio da agenda (horário do aeroclube, não o UTC do servidor)
-from regras import agora_local, hoje_local  # noqa: F401
+def agora_local():
+    return regras.agora_local()
+
+
+def hoje_local():
+    return regras.hoje_local()
 
 # Com quantos dias de antecedência o documento passa para "atenção" (amarelo)
 DIAS_ATENCAO = 30
