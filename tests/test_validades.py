@@ -41,6 +41,15 @@ def test_ler_duracao_formatos_aceitos():
     assert validades.ler_duracao(' 0:45 ') == 45
 
 
+def test_ler_duracao_so_numeros_vira_horas_e_minutos():
+    # Digitar sem os dois pontos dá o mesmo resultado (o banco guarda minutos)
+    assert validades.ler_duracao('0130') == validades.ler_duracao('01:30') == 90
+    assert validades.ler_duracao('130') == 90
+    assert validades.ler_duracao('1045') == 645
+    assert validades.ler_duracao('0175') is None   # 75 minutos não existe
+    assert validades.ler_duracao('2500') is None   # mais de 24 horas
+
+
 def test_ler_duracao_recusa_invalidos():
     for texto in ('', 'abc', '1:75', '0:00', '0', '25:00', '-1', '1:3'):
         assert validades.ler_duracao(texto) is None, texto
