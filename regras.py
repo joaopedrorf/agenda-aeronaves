@@ -86,6 +86,14 @@ def pode_cancelar(usuario, reserva):
     return usuario.id in (reserva.aluno_id, reserva.instrutor_id, reserva.criada_por_id)
 
 
+def pode_registrar_voo(usuario, reserva, agora=None):
+    """Depois que o voo termina, aluno, instrutor ou secretaria lançam o tempo voado."""
+    agora = agora or agora_local()
+    if reserva.cancelada or reserva.voo_registrado or reserva.fim > agora:
+        return False
+    return usuario.is_admin or usuario.id in (reserva.aluno_id, reserva.instrutor_id)
+
+
 def horarios_do_dia():
     """Lista os inícios de bloco do dia: 07:00, 07:30, ... 18:30."""
     blocos = []
