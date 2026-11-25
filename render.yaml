@@ -19,3 +19,6 @@ services:
         value: "1"
       - key: FUSO_HORARIO
         value: America/Sao_Paulo
+      # Opcional: frase secreta para o envio diário dos avisos (a mesma do GitHub Actions)
+      - key: AVISOS_TOKEN
+        sync: false

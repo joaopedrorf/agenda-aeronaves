@@ -78,12 +78,13 @@ h3 { margin: 8px 0 0 0; font-size: 18px; }
 
 .menu-gaveta { flex: 1; display: flex; align-items: center; gap: 12px 32px; }
 
-.menu { display: flex; flex-wrap: wrap; gap: 4px; font-size: 15px; }
+.menu { display: flex; flex-wrap: wrap; gap: 2px; font-size: 15px; }
 
 .menu a {
     color: var(--texto-claro);
     text-decoration: none;
-    padding: 10px 14px;
+    white-space: nowrap;
+    padding: 10px 12px;
     border-radius: 8px;
 }
 
@@ -275,7 +276,7 @@ h3 { margin: 8px 0 0 0; font-size: 18px; }
 
 label, legend { font-weight: 600; font-size: 14px; color: var(--texto-2); }
 
-input[type="text"], input[type="email"], input[type="password"],
+input[type="text"], input[type="email"], input[type="password"], input[type="number"],
 input[type="date"], input[type="time"], select {
     width: 100%;
     height: 48px;
@@ -382,7 +383,7 @@ input[aria-invalid="true"] { border: 2px solid #C2410C; }
 
 .amostra { width: 14px; height: 14px; border-radius: 4px; display: inline-block; }
 
-.rolagem { overflow-x: auto; }
+.rolagem { overflow-x: auto; position: relative; } /* relative: rótulos escondidos (.so-leitor) não escapam da tabela */
 
 .grade-tabela { min-width: 960px; }
 
@@ -773,3 +774,61 @@ input[aria-invalid="true"] { border: 2px solid #C2410C; }
 .link-senha { color: var(--texto-claro); font-size: 13px; }
 .link-senha:hover { color: #FFFFFF; }
 .formulario-senha { flex: none; }
+
+/* ---------- Validades e horas de voo ---------- */
+
+.contadores { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+.contador { padding: 16px 18px; border-left: 4px solid var(--borda-forte); }
+.contador-numero { font-size: 30px; font-weight: 700; }
+.contador-numero.mono { font-size: 26px; }
+.contador-nome { color: var(--texto-3); font-size: 14px; margin-top: 2px; }
+.contador-vencido { border-left-color: var(--perigo); }
+.contador-vencido .contador-numero { color: var(--perigo); }
+.contador-atencao { border-left-color: var(--amarelo); }
+.contador-em_dia { border-left-color: #2F855A; }
+
+.selo {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+.selo-vencido { background: var(--perigo-fundo); color: var(--perigo); }
+.selo-atencao { background: #FFF6D6; color: #7A5A00; }
+.selo-em_dia { background: var(--ok-fundo); color: var(--ok); }
+.selo-simulado { background: var(--azul-claro); color: var(--azul); }
+.linha-vencido td:first-child { box-shadow: inset 4px 0 0 var(--perigo); }
+.linha-atencao td:first-child { box-shadow: inset 4px 0 0 var(--amarelo); }
+
+.por-funcao { display: flex; flex-wrap: wrap; gap: 8px 24px; margin: 0; font-size: 14px; }
+.colunas { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+
+.botao-pequeno {
+    min-height: 36px;
+    padding: 0 14px;
+    border: 1px solid var(--borda-forte);
+    border-radius: 8px;
+    background: var(--cartao);
+    color: var(--azul);
+    font: 600 13px var(--sans);
+    cursor: pointer;
+    white-space: nowrap;
+}
+.botao-pequeno:hover { border-color: var(--azul); background: var(--azul-claro); }
+
+.em-linha { display: flex; gap: 6px; align-items: center; }
+.em-linha input[type="date"], .em-linha .campo-curto { height: 36px; width: auto; font-size: 14px; padding: 0 8px; }
+.em-linha .campo-curto { width: 64px; }
+.aviso-info { background: var(--azul-claro); color: var(--azul); }
+
+@media (max-width: 760px) {
+    .contadores { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .contadores-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+    .contador { padding: 12px 14px; }
+    .contador-numero { font-size: 24px; }
+    .contador-numero.mono { font-size: 20px; }
+}

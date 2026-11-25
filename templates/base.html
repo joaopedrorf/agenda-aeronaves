@@ -35,7 +35,9 @@
                 <nav class="menu" aria-label="{{ t.menu_principal }}">
                     {% set itens = [('agenda', t.menu_agenda), ('nova_reserva', t.menu_nova), ('minhas_reservas', t.menu_minhas)] %}
                     {% if current_user.is_admin %}
-                        {% set itens = itens + [('aeronaves', t.menu_aeronaves), ('usuarios', t.menu_usuarios)] %}
+                        {% set itens = itens + [('secretaria', t.menu_secretaria), ('aeronaves', t.menu_aeronaves), ('usuarios', t.menu_usuarios)] %}
+                    {% else %}
+                        {% set itens = itens + [('voos', t.menu_voos), ('documentos', t.menu_documentos)] %}
                     {% endif %}
                     {% for rota, nome in itens %}
                     <a href="{{ url_for(rota) }}" class="{% if pagina == rota %}ativo{% endif %}" {% if pagina == rota %}aria-current="page"{% endif %}>{{ nome }}</a>

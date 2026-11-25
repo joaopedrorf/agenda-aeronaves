@@ -10,7 +10,7 @@
     <tbody>
         {% for u in usuarios %}
         <tr class="{% if not u.ativo %}apagada{% endif %}">
-            <td>{{ u.nome }}</td>
+            <td><a href="{{ url_for('perfil_usuario', usuario_id=u.id) }}">{{ u.nome }}</a></td>
             <td>{{ u.email }}</td>
             <td>{{ t['papel_' ~ u.papel] }}</td>
             <td>{{ t.ativo if u.ativo else t.inativo }}</td>
