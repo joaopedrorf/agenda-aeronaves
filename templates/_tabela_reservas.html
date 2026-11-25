@@ -28,7 +28,7 @@
                     <input type="hidden" name="csrf" value="{{ csrf }}">
                     <input type="hidden" name="voltar" value="{{ request.full_path.rstrip('?') }}">
                     <label class="so-leitor" for="tempo-{{ r.id }}">{{ t.tempo }}</label>
-                    <input type="text" id="tempo-{{ r.id }}" name="tempo" value="{{ horas(((r.fim - r.inicio).total_seconds() // 60)|int) }}" class="mono campo-curto" inputmode="decimal" required>
+                    <input type="text" id="tempo-{{ r.id }}" name="tempo" value="{{ horas(((r.fim - r.inicio).total_seconds() // 60)|int) }}" class="mono campo-curto campo-horas" maxlength="5" inputmode="decimal" required>
                     <label class="so-leitor" for="pousos-{{ r.id }}">{{ t.pousos }}</label>
                     <input type="number" id="pousos-{{ r.id }}" name="pousos" value="1" min="0" max="99" class="campo-curto" title="{{ t.pousos }}">
                     <button type="submit" class="botao-pequeno">{{ t.registrar_voo }}</button>

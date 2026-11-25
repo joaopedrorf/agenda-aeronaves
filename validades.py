@@ -70,9 +70,14 @@ def vencidos_no_dia(usuario, dia, como_instrutor=False):
 # ---------- Horas de voo ----------
 
 def ler_duracao(texto):
-    """Aceita '1:30', '1h30', '1,5' ou '1.5'. Devolve minutos (int) ou None se inválido."""
+    """Aceita '1:30', '01:30', '0130', '130', '1h30', '1,5' ou '1.5'.
+
+    Devolve minutos (int) ou None se inválido. Seja qual for o jeito de digitar,
+    o banco guarda sempre o mesmo dado: minutos (1:30 = 90).
+    """
     texto = (texto or '').strip().lower().replace(' ', '')
-    m = re.fullmatch(r'(\d{1,2})[:h](\d{2})?', texto)
+    # Só números com 3 ou 4 dígitos = horas e minutos sem os dois pontos (0130 = 1:30)
+    m = re.fullmatch(r'(\d{1,2})[:h](\d{2})?', texto) or re.fullmatch(r'(\d{1,2})(\d{2})', texto)
     if m:
         horas, minutos = int(m.group(1)), int(m.group(2) or 0)
         if minutos >= 60:

@@ -26,7 +26,7 @@
         </div>
         <div>
             <label for="tempo">{{ t.tempo }}</label>
-            <input type="text" id="tempo" name="tempo" required placeholder="1:30" value="{{ form.get('tempo', '') }}" class="mono" inputmode="decimal">
+            <input type="text" id="tempo" name="tempo" required placeholder="00:00" maxlength="5" value="{{ form.get('tempo', '') }}" class="mono campo-horas" inputmode="decimal">
         </div>
         <div>
             <label for="pousos">{{ t.pousos }}</label>

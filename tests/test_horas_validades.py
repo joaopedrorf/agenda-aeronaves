@@ -139,6 +139,11 @@ def test_lancar_horas_anteriores(client):
                                           'funcao': 'solo', 'tempo': '1,5', 'pousos': '3'})
     assert resposta.status_code == 302
     assert Voo.query.filter_by(matricula='PR-ABC', minutos=90).count() == 1
+    # Só os números (0130) também vale, e vira o mesmo dado: 90 minutos
+    resposta = client.post('/voos', data={'data': regras.hoje_local().isoformat(), 'matricula': 'PR-OTA',
+                                          'funcao': 'instrucao', 'tempo': '0130', 'pousos': '1'})
+    assert resposta.status_code == 302
+    assert Voo.query.filter_by(matricula='PR-OTA', minutos=90).count() == 1
 
 
 def test_secretaria_ve_painel_e_aluno_nao(client):
