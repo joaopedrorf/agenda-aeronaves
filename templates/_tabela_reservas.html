@@ -17,8 +17,23 @@
             <td>{{ r.aluno.nome }}</td>
             <td>{{ r.instrutor.nome if r.instrutor else t.solo }}</td>
             <td>{{ r.observacao }}</td>
-            <td>{{ t.cancelada if r.cancelada else t.confirmada }}</td>
             <td>
+                {% if r.cancelada %}{{ t.cancelada }}
+                {% elif r.voo_registrado %}<span class="selo selo-em_dia">{{ t.voo_registrado }}</span>
+                {% else %}{{ t.confirmada }}{% endif %}
+            </td>
+            <td>
+                {% if pode_registrar(r) %}
+                <form method="POST" action="{{ url_for('registrar_voo_da_reserva', reserva_id=r.id) }}" class="em-linha">
+                    <input type="hidden" name="csrf" value="{{ csrf }}">
+                    <input type="hidden" name="voltar" value="{{ request.full_path.rstrip('?') }}">
+                    <label class="so-leitor" for="tempo-{{ r.id }}">{{ t.tempo }}</label>
+                    <input type="text" id="tempo-{{ r.id }}" name="tempo" value="{{ horas(((r.fim - r.inicio).total_seconds() // 60)|int) }}" class="mono campo-curto" inputmode="decimal" required>
+                    <label class="so-leitor" for="pousos-{{ r.id }}">{{ t.pousos }}</label>
+                    <input type="number" id="pousos-{{ r.id }}" name="pousos" value="1" min="0" max="99" class="campo-curto" title="{{ t.pousos }}">
+                    <button type="submit" class="botao-pequeno">{{ t.registrar_voo }}</button>
+                </form>
+                {% endif %}
                 {% if pode_cancelar and not r.cancelada %}
                 <form method="POST" action="{{ url_for('cancelar_reserva', reserva_id=r.id) }}" onsubmit="return confirm('{{ t.confirmar_cancelar }}')">
                     <input type="hidden" name="csrf" value="{{ csrf }}">

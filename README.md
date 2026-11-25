@@ -26,6 +26,12 @@ Sistema web para aeroclubes e escolas de aviação organizarem o uso da frota: a
 - **Regras do aeroclube**: horário de funcionamento (07h às 19h), máximo de 4 horas por reserva, sem reservas no passado. Tudo configurável em `regras.py`.
 - **Cancelamento** pelo próprio aluno, pelo instrutor do voo ou pela secretaria. O histórico fica guardado.
 - **Administração**: cadastro de aeronaves (com opção de tirar da agenda durante a manutenção) e de usuários.
+- **Documentos e vencimentos**: cada pessoa cadastra a data de vencimento do CMA, das habilitações, do INVA e da proficiência em inglês. O sistema não calcula validade: usa a data que está no documento.
+- **Bloqueio por documento vencido**: a agenda não deixa reservar voo se o CMA ou a habilitação do aluno (ou o INVA do instrutor) estiver vencido na data do voo.
+- **Reserva vira hora de voo**: depois que o voo termina, aluno, instrutor ou secretaria registram o tempo voado e os pousos em "Minhas reservas". As horas entram para o aluno e para o instrutor. Horas de antes do sistema são lançadas em "Minhas horas".
+- **Painel da secretaria**: documentos vencidos e vencendo em 30 dias, voos realizados sem horas lançadas e horas por aeronave no último mês.
+- **Avisos por e-mail**: 30 dias antes, 7 dias antes e no dia do vencimento, com cópia para a secretaria (sem servidor de e-mail configurado, os avisos ficam só registrados como "simulados").
+- **Controle interno**: não substitui a CIV digital da ANAC nem a conferência da secretaria.
 - **Bilíngue**: português e inglês, trocando com um clique.
 - **Funciona no celular**: a agenda vira uma lista por aeronave, com faixa de dias e botão "Reservar" sempre à mão.
 
@@ -54,11 +60,13 @@ Python, Flask, SQLAlchemy (SQLite no computador, PostgreSQL em produção), Flas
 |---|---|
 | `app.py` | Rotas e telas (login, agenda, reservas, administração) |
 | `regras.py` | Regras de agendamento: conflitos, horários, sugestões, fuso |
-| `modelos.py` | Tabelas do banco: usuário, aeronave, reserva |
+| `validades.py` | Vencimentos, bloqueio de reserva, soma de horas e pousos |
+| `avisos.py` | Lembretes de vencimento por e-mail |
+| `modelos.py` | Tabelas do banco: usuário, aeronave, reserva, documento, voo, aviso |
 | `seguranca.py` | Limite de tentativas de login e cabeçalhos de segurança |
 | `textos.py` | Todos os textos em português e inglês |
 | `demo.py` | Aeroclube fictício para a demonstração |
-| `tests/` | 41 testes automáticos, que rodam no GitHub a cada envio |
+| `tests/` | 70 testes automáticos, que rodam no GitHub a cada envio |
 
 ### Como rodar
 
@@ -84,6 +92,8 @@ Copie `.env.exemplo` para `.env`. Variáveis:
 - `SECRET_KEY`: frase secreta usada para proteger o login.
 - `DATABASE_URL`: endereço do PostgreSQL. Sem ela, usa um arquivo SQLite local.
 - `DEMO`: `1` cria dados de exemplo quando o banco está vazio; `0` começa limpo.
+- `SMTP_HOST`, `SMTP_PORTA`, `SMTP_USUARIO`, `SMTP_SENHA`, `EMAIL_REMETENTE`: servidor que envia os avisos de vencimento. Sem `SMTP_HOST`, os avisos são simulados.
+- `AVISOS_TOKEN`: senha que o GitHub Actions usa para pedir o envio diário dos avisos (ver `.github/workflows/avisos.yml`). Sem ela, o envio automático fica desligado e a secretaria usa o botão "Enviar agora".
 
 ### Publicar no Render
 
@@ -106,6 +116,12 @@ A web app for flying clubs and flight schools to manage their fleet: students an
 - **Club rules**: opening hours (07:00 to 19:00), 4 hours max per booking, no bookings in the past. All configurable in `regras.py`.
 - **Cancellation** by the student, the flight's instructor or the front desk. History is kept.
 - **Admin**: manage aircraft (take one off the schedule during maintenance) and users.
+- **Documents and expiry dates**: each person records the expiry date of their medical certificate, ratings, instructor rating and English proficiency. The app does not calculate validity: it uses the date printed on the document.
+- **Expired documents block bookings**: a flight cannot be booked if the student's medical or rating (or the instructor's instructor rating) will be expired on the flight date.
+- **Bookings become flight hours**: once a flight ends, the student, instructor or front desk logs the flight time and landings in "My bookings". Hours go to both student and instructor. Hours from before the system go in "My hours".
+- **Front desk dashboard**: expired documents and those expiring within 30 days, completed flights with no hours logged, and hours per aircraft over the last month.
+- **E-mail reminders**: 30 days before, 7 days before and on the expiry date, copied to the front desk (with no mail server configured, reminders are only recorded as "simulated").
+- **Internal record**: it does not replace ANAC's official digital logbook (CIV) or the front desk's own checks.
 - **Bilingual**: Portuguese and English, switched with one click.
 - **Mobile friendly**: on a phone the schedule becomes a list per aircraft, with a day strip and a floating "Book" button.
 
@@ -136,7 +152,7 @@ Run the tests with `python -m pytest`.
 
 ### Settings
 
-Copy `.env.exemplo` to `.env`. `SECRET_KEY` protects sessions, `DATABASE_URL` points to PostgreSQL (SQLite is used when it is missing) and `DEMO=1` seeds sample data into an empty database.
+Copy `.env.exemplo` to `.env`. `SECRET_KEY` protects sessions, `DATABASE_URL` points to PostgreSQL (SQLite is used when it is missing) and `DEMO=1` seeds sample data into an empty database. `SMTP_*` and `EMAIL_REMETENTE` set the mail server for reminders (simulated without `SMTP_HOST`), and `AVISOS_TOKEN` lets the daily GitHub Actions job trigger them (see `.github/workflows/avisos.yml`).
 
 ### Deploying on Render
 
