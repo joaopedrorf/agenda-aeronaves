@@ -1,4 +1,4 @@
-# ✈️ Agenda de Aeronaves · Aircraft Scheduling
+# ✈️ Agenda de Aeronaves · Aircraft Scheduling 🛩
 
 [![Testes](https://github.com/joaopedrorf/agenda-aeronaves/actions/workflows/testes.yml/badge.svg)](https://github.com/joaopedrorf/agenda-aeronaves/actions/workflows/testes.yml)
 ![Python](https://img.shields.io/badge/Python-3.12-1E4E8C)
