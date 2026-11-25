@@ -1,3 +1,4 @@
+import hmac
 import os
 import secrets
 from datetime import datetime, timedelta
@@ -6,8 +7,10 @@ from dotenv import load_dotenv
 from flask import Flask, abort, flash, redirect, render_template, request, session, url_for
 from flask_login import LoginManager, current_user, login_required, login_user, logout_user
 
-from modelos import PAPEIS, Aeronave, Reserva, Usuario, db
+from modelos import FUNCOES, PAPEIS, TIPOS_DOCUMENTO, Aeronave, Aviso, Documento, Reserva, Usuario, Voo, db
+import avisos
 import regras
+import validades
 from seguranca import LimitadorDeTentativas, aplicar_cabecalhos
 from textos import TEXTOS
 
@@ -30,6 +33,8 @@ def create_app(config=None):
     app.config['SECRET_KEY'] = os.getenv('SECRET_KEY') or secrets.token_hex(32)
     app.config['SQLALCHEMY_DATABASE_URI'] = endereco_banco()
     app.config['DEMO'] = os.getenv('DEMO', '1') == '1'
+    # Senha que o agendador diário (GitHub Actions) usa para pedir o envio dos avisos
+    app.config['AVISOS_TOKEN'] = os.getenv('AVISOS_TOKEN', '')
     # Cookie de sessão: invisível para JavaScript, não vai junto em links de outros
     # sites e, em produção (HTTPS), só trafega criptografado
     em_producao = bool(os.getenv('RENDER')) or os.getenv('COOKIE_SEGURO') == '1'
@@ -73,6 +78,11 @@ def create_app(config=None):
         from demo import criar_demo
         print('Dados criados.' if criar_demo() else 'O banco já tem dados.')
 
+    @app.cli.command('enviar-avisos')
+    def comando_enviar_avisos():
+        """flask --app app enviar-avisos: manda os lembretes de vencimento do dia."""
+        print(f'{avisos.enviar_pendentes()} aviso(s) enviado(s).')
+
     return app
 
 
@@ -111,6 +121,29 @@ def data_por_extenso(dia):
     t = textos()
     return t['formato_dia'].format(semana=t['semana'][dia.weekday()],
                                    dia=dia.day, mes=t['meses'][dia.month - 1])
+
+
+def mostrar_data(dia):
+    """28/10/2026 em português, 2026-10-28 em inglês (sem confusão de mês e dia)."""
+    return dia.strftime('%d/%m/%Y' if idioma_atual() == 'pt' else '%Y-%m-%d')
+
+
+def pode_mexer(usuario_id):
+    """Cada um mexe só nos próprios documentos e voos; a secretaria mexe em todos."""
+    if usuario_id != current_user.id and not current_user.is_admin:
+        abort(403)
+
+
+def documentos_ativos():
+    """Documentos de todas as pessoas ativas, do que vence primeiro ao último."""
+    return Documento.query.join(Usuario).filter(Usuario.ativo.is_(True)) \
+        .order_by(Documento.vencimento).all()
+
+
+def nome_documento(doc):
+    t = textos()
+    nome = t['tipo_' + doc.tipo]
+    return f"{nome} ({doc.descricao})" if doc.descricao else nome
 
 
 def data_curta(dia):
@@ -166,6 +199,9 @@ def registrar_rotas(app):
 
     @app.before_request
     def conferir_csrf():
+        # A rota do agendador usa token próprio no cabeçalho, não formulário
+        if request.endpoint == 'tarefa_avisos':
+            return
         if request.method == 'POST' and not app.config.get('TESTING_SEM_CSRF'):
             enviado = request.form.get('csrf')
             if not enviado or enviado != session.get('csrf'):
@@ -173,6 +209,7 @@ def registrar_rotas(app):
 
     @app.context_processor
     def variaveis_do_template():
+        hoje = regras.hoje_local()
         return {
             't': textos(),
             'idioma': idioma_atual(),
@@ -183,6 +220,14 @@ def registrar_rotas(app):
             'pagina': request.endpoint,
             'abertura': regras.HORA_ABERTURA,
             'fechamento': regras.HORA_FECHAMENTO,
+            'hoje': hoje,
+            'data': mostrar_data,
+            'horas': validades.formatar_horas,
+            'situacao': lambda doc: validades.situacao(doc.vencimento, hoje),
+            'dias': lambda doc: validades.dias_restantes(doc.vencimento, hoje),
+            'tipos': TIPOS_DOCUMENTO,
+            'funcoes': FUNCOES,
+            'pode_registrar': lambda r: current_user.is_authenticated and regras.pode_registrar_voo(current_user, r),
         }
 
     @app.errorhandler(403)
@@ -344,7 +389,7 @@ def registrar_rotas(app):
             return tela(form)
 
         form = request.form
-        erros = []
+        erros, vencidos = [], []
         try:
             dia = datetime.strptime(form['data'], '%Y-%m-%d').date()
             inicio = datetime.combine(dia, datetime.strptime(form['inicio'], '%H:%M').time())
@@ -369,10 +414,16 @@ def registrar_rotas(app):
                 erros = regras.validar_horario(inicio, fim)
                 if not erros:
                     erros = regras.conflitos(inicio, fim, aeronave.id, aluno_id, instrutor_id)
+                # Ninguém voa com CMA ou habilitação vencidos na data do voo
+                vencidos = validades.vencidos_no_dia(aluno, dia)
+                if instrutor:
+                    vencidos += validades.vencidos_no_dia(instrutor, dia, como_instrutor=True)
 
-        if erros:
+        if erros or vencidos:
             mensagens = [t[e].format(abertura=regras.HORA_ABERTURA, fechamento=regras.HORA_FECHAMENTO)
                          for e in erros]
+            mensagens += [t['doc_vencido'].format(nome=d.dono.nome, doc=nome_documento(d),
+                                                   data=mostrar_data(d.vencimento)) for d in vencidos]
             sugestao = None
             if any(e.startswith('conflito_') for e in erros):
                 sugestao = regras.sugerir(inicio, fim, aeronave.id, aluno_id, instrutor_id, aeronaves)
@@ -415,6 +466,201 @@ def registrar_rotas(app):
         historico = consulta.filter((Reserva.fim < agora) | Reserva.cancelada.is_(True)) \
             .order_by(Reserva.inicio.desc()).limit(50).all()
         return render_template('minhas.html', proximas=proximas, historico=historico)
+
+    @app.route('/reservas/<int:reserva_id>/voo', methods=['POST'])
+    @login_required
+    def registrar_voo_da_reserva(reserva_id):
+        """Transforma uma reserva realizada em horas de voo do aluno (e do instrutor)."""
+        t = textos()
+        reserva = db.session.get(Reserva, reserva_id) or abort(404)
+        if not regras.pode_registrar_voo(current_user, reserva):
+            abort(403)
+        minutos = validades.ler_duracao(request.form.get('tempo'))
+        try:
+            pousos = int(request.form.get('pousos') or 0)
+        except ValueError:
+            pousos = -1
+        if minutos is None:
+            flash(t['tempo_invalido'], 'erro')
+        elif not 0 <= pousos <= 99:
+            flash(t['dados_invalidos'], 'erro')
+        else:
+            comum = dict(reserva_id=reserva.id, data=reserva.inicio.date(), minutos=minutos,
+                         matricula=reserva.aeronave.matricula, observacao=reserva.observacao or '')
+            db.session.add(Voo(usuario_id=reserva.aluno_id, pousos=pousos,
+                               funcao='instrucao' if reserva.instrutor_id else 'solo', **comum))
+            if reserva.instrutor_id:
+                db.session.add(Voo(usuario_id=reserva.instrutor_id, pousos=pousos, funcao='instrutor', **comum))
+            db.session.commit()
+            flash(t['voo_salvo'], 'ok')
+        voltar = request.form.get('voltar', '')
+        if not voltar.startswith('/') or voltar.startswith('//'):
+            voltar = url_for('minhas_reservas')
+        return redirect(voltar)
+
+    # ---------- Documentos ----------
+
+    def voltar_para(dono_id):
+        if dono_id != current_user.id:
+            return url_for('perfil_usuario', usuario_id=dono_id)
+        return url_for('documentos')
+
+    @app.route('/documentos', methods=['GET', 'POST'])
+    @login_required
+    def documentos():
+        t = textos()
+        if request.method == 'POST':
+            # A secretaria pode cadastrar para outra pessoa (vem da página da pessoa)
+            try:
+                dono_id = int(request.form.get('usuario_id') or current_user.id)
+            except ValueError:
+                abort(400)
+            pode_mexer(dono_id)
+            tipo = request.form.get('tipo', '')
+            vencimento = ler_data(request.form.get('vencimento'))
+            if tipo not in TIPOS_DOCUMENTO or not vencimento or not db.session.get(Usuario, dono_id):
+                flash(t['dados_invalidos'], 'erro')
+            else:
+                db.session.add(Documento(usuario_id=dono_id, tipo=tipo, vencimento=vencimento,
+                                         descricao=request.form.get('descricao', '').strip()[:80]))
+                db.session.commit()
+                flash(t['documento_salvo'], 'ok')
+            return redirect(voltar_para(dono_id))
+        return render_template('documentos.html', lista=current_user.documentos)
+
+    @app.route('/documentos/<int:documento_id>/renovar', methods=['POST'])
+    @login_required
+    def renovar_documento(documento_id):
+        doc = db.session.get(Documento, documento_id) or abort(404)
+        pode_mexer(doc.usuario_id)
+        vencimento = ler_data(request.form.get('vencimento'))
+        if not vencimento:
+            flash(textos()['dados_invalidos'], 'erro')
+        else:
+            doc.vencimento = vencimento
+            db.session.commit()
+            flash(textos()['documento_renovado'], 'ok')
+        return redirect(voltar_para(doc.usuario_id))
+
+    @app.route('/documentos/<int:documento_id>/excluir', methods=['POST'])
+    @login_required
+    def excluir_documento(documento_id):
+        doc = db.session.get(Documento, documento_id) or abort(404)
+        pode_mexer(doc.usuario_id)
+        dono_id = doc.usuario_id
+        db.session.delete(doc)
+        db.session.commit()
+        flash(textos()['documento_excluido'], 'ok')
+        return redirect(voltar_para(dono_id))
+
+    # ---------- Horas de voo ----------
+
+    @app.route('/voos', methods=['GET', 'POST'])
+    @login_required
+    def voos():
+        """Voos lançados à mão (ex: horas anteriores ao sistema). Os da agenda entram sozinhos."""
+        t = textos()
+        form = {}
+        if request.method == 'POST':
+            form = request.form
+            dia = ler_data(form.get('data'))
+            minutos = validades.ler_duracao(form.get('tempo'))
+            matricula = form.get('matricula', '').strip().upper()
+            funcao = form.get('funcao', '')
+            try:
+                pousos = int(form.get('pousos') or 0)
+            except ValueError:
+                pousos = -1
+            erros = []
+            if not dia or not matricula or funcao not in FUNCOES or not 0 <= pousos <= 99:
+                erros.append(t['dados_invalidos'])
+            elif dia > regras.hoje_local():
+                erros.append(t['voo_futuro'])
+            if minutos is None:
+                erros.append(t['tempo_invalido'])
+            if not erros:
+                db.session.add(Voo(usuario_id=current_user.id, data=dia, matricula=matricula[:10],
+                                   funcao=funcao, minutos=minutos, pousos=pousos,
+                                   observacao=form.get('observacao', '').strip()[:200]))
+                db.session.commit()
+                flash(t['voo_salvo'], 'ok')
+                return redirect(url_for('voos'))
+            for erro in erros:
+                flash(erro, 'erro')
+        status = 400 if request.method == 'POST' else 200
+        return render_template('voos.html', lista=current_user.voos, form=form,
+                               resumo=validades.totais(current_user.voos)), status
+
+    @app.route('/voos/<int:voo_id>/excluir', methods=['POST'])
+    @login_required
+    def excluir_voo(voo_id):
+        voo = db.session.get(Voo, voo_id) or abort(404)
+        pode_mexer(voo.usuario_id)
+        db.session.delete(voo)
+        db.session.commit()
+        flash(textos()['voo_excluido'], 'ok')
+        return redirect(url_for('voos'))
+
+    # ---------- Secretaria ----------
+
+    @app.route('/secretaria')
+    @login_required
+    def secretaria():
+        somente('admin')
+        hoje = regras.hoje_local()
+        documentos = documentos_ativos()
+        desde = hoje - timedelta(days=30)
+        voos_30 = Voo.query.filter(Voo.data > desde).all()
+        sem_registro = [r for r in Reserva.query.filter(
+            Reserva.cancelada.is_(False),
+            Reserva.fim <= regras.agora_local(),
+            Reserva.inicio >= datetime.combine(desde, datetime.min.time()),
+        ).order_by(Reserva.inicio.desc()).all() if not r.voo_registrado]
+        return render_template(
+            'secretaria.html',
+            contagem=validades.contar_situacoes(documentos, hoje),
+            atencao=[d for d in documentos if validades.situacao(d.vencimento, hoje) != 'em_dia'],
+            pendentes=len(avisos.pendentes(hoje)),
+            por_aeronave=validades.horas_por_aeronave(voos_30),
+            sem_registro=sem_registro,
+        )
+
+    @app.route('/usuarios/<int:usuario_id>')
+    @login_required
+    def perfil_usuario(usuario_id):
+        somente('admin')
+        usuario = db.session.get(Usuario, usuario_id) or abort(404)
+        return render_template('perfil.html', usuario=usuario, resumo=validades.totais(usuario.voos))
+
+    @app.route('/avisos')
+    @login_required
+    def lista_avisos():
+        somente('admin')
+        historico = Aviso.query.order_by(Aviso.enviado_em.desc()).limit(50).all()
+        return render_template('avisos.html', pendentes=avisos.pendentes(), historico=historico,
+                               smtp=bool(avisos.configuracao_smtp()['host']))
+
+    @app.route('/avisos/enviar', methods=['POST'])
+    @login_required
+    def enviar_avisos():
+        somente('admin')
+        try:
+            quantos = avisos.enviar_pendentes()
+        except OSError:  # Servidor de e-mail fora do ar ou senha errada
+            db.session.rollback()
+            flash(textos()['email_falhou'], 'erro')
+        else:
+            flash(textos()['avisos_enviados'].format(n=quantos), 'ok')
+        return redirect(url_for('lista_avisos'))
+
+    @app.route('/tarefas/avisos', methods=['POST'])
+    def tarefa_avisos():
+        """Chamada uma vez por dia pelo GitHub Actions (ver .github/workflows/avisos.yml)."""
+        token = app.config['AVISOS_TOKEN']
+        enviado = request.headers.get('Authorization', '').removeprefix('Bearer ')
+        if not token or not hmac.compare_digest(enviado, token):
+            abort(404)  # Sem token configurado, a rota nem "existe"
+        return {'enviados': avisos.enviar_pendentes()}
 
     # ---------- Administração ----------
 
